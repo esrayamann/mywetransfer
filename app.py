@@ -210,6 +210,9 @@ def upload_file():
 # DOSYA İNDİR
 @app.route('/download/<filename>')
 def download_file(filename):
+    file_entry = File.query.filter_by(filename=filename).first()
+    if file_entry:
+        send_download_notification(file_entry)
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 
@@ -252,6 +255,34 @@ def send_download_link_mail(to_email, filename, link):
         server.login(sender_email, password)
         server.send_message(msg)
 
+def send_download_notification(file_entry):
+    sender_email = file_entry.sender_email
+    receiver_email = file_entry.email
+    filename = file_entry.filename
+
+    sender_address = os.getenv("MAIL_USERNAME")
+    password = os.getenv("MAIL_PASSWORD")
+
+    # Alıcıya bilgi
+    msg_receiver = MIMEMultipart()
+    msg_receiver['From'] = sender_address
+    msg_receiver['To'] = receiver_email
+    msg_receiver['Subject'] = 'Dosyanız İndirildi!'
+    msg_receiver.attach(MIMEText(
+        f'{filename} dosyası başarıyla indirildi.', 'plain'))
+
+    # Gönderene bilgi
+    msg_sender = MIMEMultipart()
+    msg_sender['From'] = sender_address
+    msg_sender['To'] = sender_email
+    msg_sender['Subject'] = 'Gönderdiğiniz Dosya İndirildi!'
+    msg_sender.attach(MIMEText(
+        f'{filename} isimli gönderdiğiniz dosya {receiver_email} tarafından indirildi.', 'plain'))
+
+    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+        server.login(sender_address, password)
+        server.send_message(msg_receiver)
+        server.send_message(msg_sender)
 
 if __name__ == '__main__':
     with app.app_context():
