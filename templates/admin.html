@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Panel</title>
+    <style>
+        body { font-family: Arial; background: #f0f0f0; padding: 50px; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 30px; border-radius: 5px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #f4f4f4; }
+        a button {
+        background: #f44336;
+        color: white;
+        border: none;
+        padding: 8px 12px;
+        cursor: pointer;
+        }
+        a button:hover {
+            background: #c0392b;
+        }
+    </style>
+</head>
+<body>
+    <a href="{{ url_for('logout') }}">
+        <button>Çıkış Yap</button>
+    </a>
+    
+    <div class="container">
+        <h2>Admin Panel</h2>
+        <table>
+            <tr>
+                <th>ID</th>
+                <th>Kullanıcı Adı</th>
+                <th>Email</th>
+                <th>Rol</th>
+                <th>İşlem</th>
+                <th>Premium</th>
+                <th>Kalan Alan (MB)</th>
+            </tr>
+            {% for user in users %}
+            <tr>
+                <td>{{ user.id }}</td>
+                <td>{{ user.username }}</td>
+                <td>{{ user.email }}</td>
+                <td>{{ user.role }}</td>
+                <td>
+                    {% if user.role == 'user' %}
+                    <form method="POST" action="{{ url_for('change_role', user_id=user.id) }}">
+                        <input type="hidden" name="role" value="admin">
+                        <button type="submit">Admin Yap</button>
+                    </form>
+                    {% elif user.role == 'admin' %}
+                    <form method="POST" action="{{ url_for('change_role', user_id=user.id) }}">
+                        <input type="hidden" name="role" value="user">
+                        <button type="submit">Kullanıcı Yap</button>
+                    </form>
+                    {% endif %}
+                </td>
+                <td>{{ 'Evet' if user.is_premium else 'Hayır' }}</td>
+                <td>{{ user.storage_quota }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Premium Üyelik Satın Al</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f1f1f1;
+            padding: 50px;
+        }
+
+        .container {
+            background: #fff;
+            padding: 40px;
+            max-width: 400px;
+            margin: auto;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        h2 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        input[type="month"] {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            box-sizing: border-box;
+        }
+
+        button {
+            margin-top: 20px;
+            width: 100%;
+            padding: 12px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        a {
+            display: block;
+            margin-top: 20px;
+            text-align: center;
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Premium Üyelik Satın Al</h2>
+        <form method="POST">
+            <label>Kart Sahibi</label>
+            <input type="text" name="cardholder" placeholder="Ad Soyad" required>
+
+            <label>Kart Numarası</label>
+            <input type="text" name="cardnumber" placeholder="0000 0000 0000 0000" required maxlength="19">
+
+            <label>Son Kullanma Tarihi</label>
+            <input type="month" name="expiry" required>
+
+            <label>CVV</label>
+            <input type="number" name="cvv" placeholder="123" required>
+
+            <button type="submit">Ödeme Yap & Premium Ol</button>
+        </form>
+
+        <a href="{{ url_for('user_home') }}">Geri Dön</a>
+    </div>
+</body>
+</html>
