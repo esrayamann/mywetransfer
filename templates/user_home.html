@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Kullanıcı Paneli</title>
+    <style>
+        body { font-family: Arial; background: #f0f0f0; padding: 50px; }
+        .container { max-width: 600px; margin: auto; background: white; padding: 30px; border-radius: 5px; }
+        a, form button { display: inline-block; margin-top: 10px; }
+        a button {
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+        a button:hover {
+            background: #c0392b;
+        }
+    </style>
+    <a href="{{ url_for('logout') }}">
+        <button>Çıkış Yap</button>
+    </a>
+    
+</head>
+<body>
+    <div class="container">
+        <h2>Hoş geldin {{ username }}</h2>
+        <p>Üyelik Türü: {{ premium_status }}</p>
+        <p>Kalan Alan: {{ storage_quota }} MB</p>
+
+        {% if not is_premium %}
+            <a href="/upgrade/{{ username }}">Premium Üyelik Satın Al</a>
+        {% else %}
+            <form method="POST" action="/cancel/{{ username }}">
+                <button type="submit">Premium Üyeliği İptal Et</but         
+        {% endif %}

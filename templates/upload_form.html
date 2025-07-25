@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Dosya Yükle</title>
+    <style>
+        body { font-family: Arial; background: #f0f0f0; padding: 50px; }
+        .container { max-width: 500px; margin: auto; background: white; padding: 30px; border-radius: 5px; }
+        input, button { width: 100%; padding: 10px; margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Dosya Yükle</h2>
+        <form method="POST" action="/upload" enctype="multipart/form-data">
+            <label>Dosya seç:</label>
+            <input type="file" name="file" required><br>
+            <button type="submit">Yükle</button>
+        </form>
+    </div>
+</body>
+</html>
