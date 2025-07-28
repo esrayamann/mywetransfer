@@ -2,36 +2,124 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <title>Kullanıcı Paneli</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kullanıcı Paneli - WeTransfer Clone</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { font-family: Arial; background: #f0f0f0; padding: 50px; }
-        .container { max-width: 600px; margin: auto; background: white; padding: 30px; border-radius: 5px; }
-        a, form button { display: inline-block; margin-top: 10px; }
-        a button {
-            background: #f44336;
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            cursor: pointer;
+        .gradient-bg { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
         }
-        a button:hover {
-            background: #c0392b;
+        .glass { 
+            backdrop-filter: blur(10px); 
+            background: rgba(255, 255, 255, 0.1); 
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .storage-bar {
+            height: 10px;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .storage-fill {
+            height: 100%;
+            transition: width 0.5s ease;
         }
     </style>
-    <a href="{{ url_for('logout') }}">
-        <button>Çıkış Yap</button>
-    </a>
-    
 </head>
-<body>
-    <div class="container">
-        <h2>Hoş geldin {{ username }}</h2>
-        <p>Üyelik Türü: {{ premium_status }}</p>
-        <p>Kalan Alan: {{ storage_quota }} MB</p>
+<body class="gradient-bg">
+    <!-- Header -->
+    <header class="glass sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <!-- Logo -->
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                        <i class="fas fa-share-alt text-white text-xl"></i>
+                    </div>
+                    <h1 class="text-2xl font-bold text-white">WeTransfer Clone</h1>
+                </div>
 
-        {% if not is_premium %}
-            <a href="/upgrade/{{ username }}">Premium Üyelik Satın Al</a>
-        {% else %}
-            <form method="POST" action="/cancel/{{ username }}">
-                <button type="submit">Premium Üyeliği İptal Et</but         
-        {% endif %}
+                <!-- Logout Button -->
+                <div class="flex items-center space-x-3">
+                    <a href="{{ url_for('logout') }}" class="bg-red-500 text-white px-6 py-2 rounded-lg font-semibold hover:bg-red-600 transition-colors">
+                        <i class="fas fa-sign-out-alt mr-2"></i>Çıkış Yap
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- User Panel Content -->
+    <main class="max-w-4xl mx-auto px-4 py-10">
+        <div class="glass rounded-2xl p-8">
+            <!-- Welcome Section -->
+            <div class="mb-10">
+                <h2 class="text-3xl font-bold text-white mb-2">Hoş geldin, <span class="text-blue-300">{{ username }}</span></h2>
+                <div class="flex items-center mt-4">
+                    <div class="w-10 h-10 bg-{{ 'yellow' if is_premium else 'gray' }}-500/20 rounded-xl flex items-center justify-center mr-3">
+                        <i class="fas fa-{{ 'crown' if is_premium else 'user' }} text-{{ 'yellow' if is_premium else 'gray' }}-300 text-xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-white/70 text-sm">Üyelik Türü</p>
+                        <p class="text-lg font-bold text-white">{{ premium_status }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Storage Info - Simplified Version -->
+            <div class="glass-card rounded-xl p-6 mb-8">
+                <h3 class="text-xl font-bold text-white mb-4">Depolama Durumu</h3>
+                <p class="text-white mb-2">Kullanılan Alan: <span class="font-bold">{{ storage_quota }} MB</span></p>
+                {% if is_premium %}
+                    <p class="text-green-300">Premium üye olduğunuz için depolama limitiniz yok</p>
+                {% else %}
+                    <p class="text-white">Ücretsiz depolama limiti: <span class="font-bold">2 GB</span></p>
+                    <div class="storage-bar bg-gray-700/30 mt-3">
+                        <div class="storage-fill bg-gradient-to-r from-blue-500 to-indigo-600" 
+                             style="width: {{ (storage_quota / 2048) * 100 if storage_quota < 2048 else 100 }}%"></div>
+                    </div>
+                    <p class="text-right text-sm text-white/50 mt-1">
+                        {% if storage_quota < 2048 %}
+                            {{ (2048 - storage_quota) }} MB boş alan
+                        {% else %}
+                            Depolama alanınız dolu
+                        {% endif %}
+                    </p>
+                {% endif %}
+            </div>
+
+            <!-- Premium Section -->
+            <div class="glass-card rounded-xl p-6">
+                <h3 class="text-xl font-bold text-white mb-4">Premium Üyelik</h3>
+                
+                {% if not is_premium %}
+                    <div class="mb-4">
+                        <p class="text-white/70 mb-2">Premium özellikler:</p>
+                        <ul class="text-white text-sm list-disc list-inside space-y-1">
+                            <li>Sınırsız depolama alanı</li>
+                            <li>Daha büyük dosya yükleme</li>
+                            <li>Reklamsız deneyim</li>
+                        </ul>
+                    </div>
+                    <a href="/upgrade/{{ username }}" class="inline-block bg-gradient-to-r from-yellow-500 to-amber-600 text-white px-6 py-3 rounded-lg font-bold">
+                        <i class="fas fa-crown mr-2"></i>Premium'a Yükselt
+                    </a>
+                {% else %}
+                    <p class="text-white mb-4">Premium üyeliğiniz aktif!</p>
+                    <form method="POST" action="/cancel/{{ username }}">
+                        <button type="submit" class="bg-gray-600 text-white px-6 py-3 rounded-lg font-bold">
+                            <i class="fas fa-times-circle mr-2"></i>Üyeliği İptal Et
+                        </button>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+    </main>
+</body>
+</html>
