@@ -1,82 +1,186 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8" />
-  <title>Üye Olmadan Dosya Gönder</title>
-  <style>
-    body {
-      background: #f5f7fa;
-      font-family: Arial, sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      margin: 0;
-    }
-
-    .container {
-      background: #fff;
-      padding: 40px;
-      border-radius: 10px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-      width: 100%;
-      max-width: 400px;
-      text-align: center;
-    }
-
-    h2 {
-      margin-bottom: 20px;
-      color: #333;
-    }
-
-    label {
-      display: block;
-      text-align: left;
-      margin-bottom: 5px;
-      font-weight: bold;
-      color: #555;
-    }
-
-    input[type="email"],
-    input[type="file"] {
-      width: 100%;
-      padding: 10px;
-      margin-bottom: 20px;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-    }
-
-    button {
-      background: #007bff;
-      color: #fff;
-      border: none;
-      padding: 12px 20px;
-      border-radius: 5px;
-      cursor: pointer;
-      font-size: 16px;
-      width: 100%;
-    }
-
-    button:hover {
-      background: #0056b3;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Üye Olmadan Dosya Gönder - WeTransfer Clone</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .gradient-bg { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .glass { 
+            backdrop-filter: blur(10px); 
+            background: rgba(255, 255, 255, 0.1); 
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .form-animation {
+            animation: slideInUp 0.8s ease-out;
+        }
+        .input-focus {
+            transition: all 0.3s ease;
+        }
+        .input-focus:focus {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .drag-area {
+            border: 2px dashed rgba(255,255,255,0.3);
+            transition: all 0.3s ease;
+        }
+        .drag-area.dragover {
+            border-color: #10b981;
+            background: rgba(16, 185, 129, 0.1);
+            transform: scale(1.02);
+        }
+        .file-preview {
+            animation: fadeInScale 0.5s ease-out;
+        }
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        @keyframes fadeInScale {
+            from {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+        .floating-elements {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            pointer-events: none;
+        }
+        .floating-elements::before,
+        .floating-elements::after {
+            content: '';
+            position: absolute;
+            width: 150px;
+            height: 150px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 50%;
+            animation: float 8s ease-in-out infinite;
+        }
+        .floating-elements::before {
+            top: 20%;
+            left: 10%;
+            animation-delay: 0s;
+        }
+        .floating-elements::after {
+            bottom: 20%;
+            right: 10%;
+            animation-delay: 4s;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-30px) rotate(180deg); }
+        }
+    </style>
 </head>
-<body>
-  <div class="container">
-    <h2>Üye Olmadan Dosya Gönder</h2>
-    <form method="POST" action="/send_file" enctype="multipart/form-data">
-      <label>Gönderen Email:</label>
-      <input type="email" name="sender_email" required>
+<body class="gradient-bg">
+    <!-- Floating Background Elements -->
+    <div class="floating-elements"></div>
 
-      <label>Alıcı Email:</label>
-      <input type="email" name="receiver_email" required>
+    <!-- Header -->
+    <header class="glass sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <!-- Logo -->
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                        <i class="fas fa-share-alt text-white text-xl"></i>
+                    </div>
+                    <h1 class="text-2xl font-bold text-white">WeTransfer Clone</h1>
+                </div>
 
-      <label>Dosya Seç:</label>
-      <input type="file" name="file" required>
+                <!-- Navigation -->
+                <nav class="hidden md:flex items-center space-x-6">
+                    <a href="dosya-gonder.html" class="text-white/80 hover:text-white transition-colors">
+                        <i class="fas fa-arrow-left mr-2"></i>Ana Sayfa
+                    </a>
+                </nav>
 
-      <button type="submit">Gönder</button>
-    </form>
-  </div>
-</body>
-</html>
+                <!-- Auth Buttons -->
+                <div class="flex items-center space-x-3">
+                    <a href="/login" class="glass text-white px-4 py-2 rounded-lg hover:bg-white/20 transition-colors text-sm">
+                        <i class="fas fa-sign-in-alt mr-2"></i>Giriş Yap
+                    </a>
+                    <a href="/register" class="bg-white text-blue-600 px-4 py-2 rounded-lg font-semibold hover:bg-white/90 transition-colors text-sm">
+                        <i class="fas fa-user-plus mr-2"></i>Kayıt Ol
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="relative min-h-screen flex items-center justify-center px-4 py-8">
+        <div class="w-full max-w-2xl">
+            <!-- Form Container -->
+            <div class="glass rounded-3xl p-8 md:p-12 form-animation">
+                <!-- Header -->
+                <div class="text-center mb-8">
+                    <div class="w-20 h-20 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                        <i class="fas fa-paper-plane text-white text-3xl"></i>
+                    </div>
+                    <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">Dosya Gönder</h2>
+                    <p class="text-white/80 text-lg">
+                        Dosyalarınızı güvenli bir şekilde gönderin. Kayıt gerektirmez.
+                    </p>
+                </div>
+
+                <!-- Form -->
+                <form id="sendFileForm" method="POST" action="/send_file" enctype="multipart/form-data" class="space-y-6">
+                    <!-- Email Fields -->
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-white/90 text-sm font-semibold mb-3">
+                                <i class="fas fa-user mr-2"></i>Gönderen Email
+                            </label>
+                            <input 
+                                type="email" 
+                                name="sender_email" 
+                                required
+                                placeholder="ornek@email.com"
+                                class="w-full bg-white/10 text-white px-4 py-4 rounded-xl border border-white/20 focus:outline-none focus:border-white/50 focus:bg-white/15 input-focus placeholder-white/50 transition-all duration-300"
+                            >
+                        </div>
+                        <div>
+                            <label class="block text-white/90 text-sm font-semibold mb-3">
+                                <i class="fas fa-envelope mr-2"></i>Alıcı Email
+                            </label>
+                            <input 
+                                type="email" 
+                                name="receiver_email" 
+                                required
+                                placeholder="alici@email.com"
+                                class="w-full bg-white/10 text-white px-4 py-4 rounded-xl border border-white/20 focus:outline-none focus:border-white/50 focus:bg-white/15 input-focus placeholder-white/50 transition-all duration-300"
+                            >
+                        </div>
+                    </div>
+
+                    <!-- File Upload Area -->
+                    <div>
+                        <label class="block text-white/90 text-sm font-semibold mb-3">
+                            <i class="fas fa-file mr-2"></i>Dosya Seç
+                        </label>
+                        
+                        <!-- Drag & Drop Area -->
+                        <div id="dragArea" class="drag-area rounded-2xl p-8 text-

@@ -2,66 +2,217 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <title>Admin Panel</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - WeTransfer Clone</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { font-family: Arial; background: #f0f0f0; padding: 50px; }
-        .container { max-width: 800px; margin: auto; background: white; padding: 30px; border-radius: 5px; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background: #f4f4f4; }
-        a button {
-        background: #f44336;
-        color: white;
-        border: none;
-        padding: 8px 12px;
-        cursor: pointer;
+        .gradient-bg { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
         }
-        a button:hover {
-            background: #c0392b;
+        .glass { 
+            backdrop-filter: blur(10px); 
+            background: rgba(255, 255, 255, 0.1); 
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .button-hover {
+            transition: all 0.3s ease;
+        }
+        .button-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .floating-elements {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            pointer-events: none;
+        }
+        .floating-elements::before,
+        .floating-elements::after {
+            content: '';
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+            animation: float 6s ease-in-out infinite;
+        }
+        .floating-elements::before {
+            top: 10%;
+            left: 10%;
+            animation-delay: 0s;
+        }
+        .floating-elements::after {
+            bottom: 10%;
+            right: 10%;
+            animation-delay: 3s;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(180deg); }
+        }
+        .table-row-hover:hover {
+            background: rgba(255,255,255,0.15);
         }
     </style>
 </head>
-<body>
-    <a href="{{ url_for('logout') }}">
-        <button>Çıkış Yap</button>
-    </a>
-    
-    <div class="container">
-        <h2>Admin Panel</h2>
-        <table>
-            <tr>
-                <th>ID</th>
-                <th>Kullanıcı Adı</th>
-                <th>Email</th>
-                <th>Rol</th>
-                <th>İşlem</th>
-                <th>Premium</th>
-                <th>Kalan Alan (MB)</th>
-            </tr>
-            {% for user in users %}
-            <tr>
-                <td>{{ user.id }}</td>
-                <td>{{ user.username }}</td>
-                <td>{{ user.email }}</td>
-                <td>{{ user.role }}</td>
-                <td>
-                    {% if user.role == 'user' %}
-                    <form method="POST" action="{{ url_for('change_role', user_id=user.id) }}">
-                        <input type="hidden" name="role" value="admin">
-                        <button type="submit">Admin Yap</button>
-                    </form>
-                    {% elif user.role == 'admin' %}
-                    <form method="POST" action="{{ url_for('change_role', user_id=user.id) }}">
-                        <input type="hidden" name="role" value="user">
-                        <button type="submit">Kullanıcı Yap</button>
-                    </form>
-                    {% endif %}
-                </td>
-                <td>{{ 'Evet' if user.is_premium else 'Hayır' }}</td>
-                <td>{{ user.storage_quota }}</td>
-            </tr>
-            {% endfor %}
-        </table>
-    </div>
+<body class="gradient-bg">
+    <!-- Floating Background Elements -->
+    <div class="floating-elements"></div>
+
+    <!-- Header -->
+    <header class="glass sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <!-- Logo -->
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                        <i class="fas fa-share-alt text-white text-xl"></i>
+                    </div>
+                    <h1 class="text-2xl font-bold text-white">WeTransfer Clone</h1>
+                </div>
+
+                <!-- Navigation -->
+                <nav class="hidden md:flex items-center space-x-6">
+                    <a href="/admin" class="text-white font-semibold">Admin Panel</a>
+                    <a href="/" class="text-white/80 hover:text-white transition-colors">Ana Sayfa</a>
+                </nav>
+
+                <!-- Logout Button -->
+                <div class="flex items-center space-x-3">
+                    <a href="{{ url_for('logout') }}" class="bg-red-500 text-white px-6 py-2 rounded-lg font-semibold hover:bg-red-600 transition-colors button-hover">
+                        <i class="fas fa-sign-out-alt mr-2"></i>Çıkış Yap
+                    </a>
+                </div>
+
+                <!-- Mobile Menu Button -->
+                <button class="md:hidden text-white">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Admin Panel Content -->
+    <main class="relative max-w-7xl mx-auto px-4 py-10">
+        <div class="glass rounded-2xl p-8">
+            <!-- Panel Header -->
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+                <div>
+                    <h2 class="text-3xl font-bold text-white mb-2">Admin Paneli</h2>
+                    <p class="text-white/70">Kullanıcıları yönetin ve sistem istatistiklerini görüntüleyin</p>
+                </div>
+                <div class="mt-4 md:mt-0">
+                    <div class="glass-card px-6 py-3 rounded-xl">
+                        <p class="text-white font-medium">Toplam Kullanıcı: <span class="text-yellow-300">{{ users|length }}</span></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Users Table -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-white">
+                    <thead>
+                        <tr class="border-b border-white/20">
+                            <th class="px-6 py-4 text-left">ID</th>
+                            <th class="px-6 py-4 text-left">Kullanıcı Adı</th>
+                            <th class="px-6 py-4 text-left">Email</th>
+                            <th class="px-6 py-4 text-left">Rol</th>
+                            <th class="px-6 py-4 text-left">İşlem</th>
+                            <th class="px-6 py-4 text-left">Premium</th>
+                            <th class="px-6 py-4 text-left">Kalan Alan (MB)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr class="border-b border-white/10 table-row-hover">
+                            <td class="px-6 py-4">{{ user.id }}</td>
+                            <td class="px-6 py-4 font-medium">{{ user.username }}</td>
+                            <td class="px-6 py-4">{{ user.email }}</td>
+                            <td class="px-6 py-4">
+                                <span class="px-3 py-1 rounded-full text-xs font-semibold {{ 'bg-blue-500/20 text-blue-300' if user.role == 'admin' else 'bg-green-500/20 text-green-300' }}">
+                                    {{ user.role }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4">
+                                {% if user.role == 'user' %}
+                                <form method="POST" action="{{ url_for('change_role', user_id=user.id) }}" class="inline">
+                                    <input type="hidden" name="role" value="admin">
+                                    <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors button-hover">
+                                        Admin Yap
+                                    </button>
+                                </form>
+                                {% elif user.role == 'admin' %}
+                                <form method="POST" action="{{ url_for('change_role', user_id=user.id) }}" class="inline">
+                                    <input type="hidden" name="role" value="user">
+                                    <button type="submit" class="bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-700 transition-colors button-hover">
+                                        Kullanıcı Yap
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4">
+                                <span class="px-3 py-1 rounded-full text-xs font-semibold {{ 'bg-yellow-500/20 text-yellow-300' if user.is_premium else 'bg-gray-500/20 text-gray-300' }}">
+                                    {{ 'Evet' if user.is_premium else 'Hayır' }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="w-full bg-gray-700/30 rounded-full h-2.5">
+                                    <div class="bg-blue-500 h-2.5 rounded-full" style="width: {{ (user.storage_quota / 2048) * 100 }}%"></div>
+                                </div>
+                                <span class="text-xs mt-1 block">{{ user.storage_quota }} / 2048 MB</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="grid md:grid-cols-3 gap-6 mt-12">
+                <div class="glass-card rounded-xl p-6">
+                    <div class="flex items-center">
+                        <div class="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center mr-4">
+                            <i class="fas fa-users text-blue-300 text-xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-white/70 text-sm">Toplam Kullanıcı</p>
+                            <p class="text-2xl font-bold text-white">{{ users|length }}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="glass-card rounded-xl p-6">
+                    <div class="flex items-center">
+                        <div class="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center mr-4">
+                            <i class="fas fa-crown text-green-300 text-xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-white/70 text-sm">Premium Kullanıcı</p>
+                            <p class="text-2xl font-bold text-white">{{ users|selectattr('is_premium')|list|length }}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="glass-card rounded-xl p-6">
+                    <div class="flex items-center">
+                        <div class="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center mr-4">
+                            <i class="fas fa-user-shield text-purple-300 text-xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-white/70 text-sm">Admin Sayısı</p>
+                            <p class="text-2xl font-bold text-white">{{ users|selectattr('role', 'equalto', 'admin')|list|length }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
 </body>
 </html>
