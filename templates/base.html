@@ -138,14 +138,67 @@
 
                 <!-- CTA Button -->
                 <div class="mb-16">
-                    <a href="/send_file" class="inline-flex items-center bg-gradient-to-r from-green-500 to-emerald-600 text-white px-12 py-6 text-xl font-bold rounded-2xl button-hover shadow-2xl">
+                    <button onclick="openFileUpload()" class="inline-flex items-center bg-gradient-to-r from-green-500 to-emerald-600 text-white px-12 py-6 text-xl font-bold rounded-2xl button-hover shadow-2xl">
                         <i class="fas fa-cloud-upload-alt mr-3 text-2xl"></i>
                         Üye Olmadan Dosya Gönder
-                    </a>
+                    </button>
                     <p class="text-white/60 mt-4 text-sm">
                         Kayıt gerektirmez • 2GB'a kadar ücretsiz • 7 gün saklama
                     </p>
                 </div>
+
+                <!-- File Upload Modal -->
+                <div id="fileUploadModal" class="fixed inset-0 bg-black/50 hidden z-50 flex items-center justify-center">
+                    <div class="glass rounded-2xl p-8 max-w-md w-full mx-4">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-2xl font-bold text-white">Dosya Gönder</h3>
+                            <button onclick="closeFileUpload()" class="text-white/70 hover:text-white">
+                                <i class="fas fa-times text-xl"></i>
+                            </button>
+                        </div>
+                        
+                        <form action="/send_file" method="POST" enctype="multipart/form-data" class="space-y-4">
+                            <div>
+                                <label class="block text-white/80 mb-2">Gönderen E-posta</label>
+                                <input type="email" name="sender_email" required 
+                                       class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-white/40">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-white/80 mb-2">Alıcı E-posta</label>
+                                <input type="email" name="receiver_email" required 
+                                       class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-white/40">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-white/80 mb-2">Dosya Seç</label>
+                                <input type="file" name="file" required 
+                                       class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-white/20 file:text-white hover:file:bg-white/30">
+                            </div>
+                            
+                            <button type="submit" class="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 rounded-lg font-bold hover:from-green-600 hover:to-emerald-700 transition-all">
+                                <i class="fas fa-paper-plane mr-2"></i>Dosyayı Gönder
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <script>
+                    function openFileUpload() {
+                        document.getElementById('fileUploadModal').classList.remove('hidden');
+                    }
+                    
+                    function closeFileUpload() {
+                        document.getElementById('fileUploadModal').classList.add('hidden');
+                    }
+                    
+                    // Modal dışına tıklandığında kapat
+                    document.getElementById('fileUploadModal').addEventListener('click', function(e) {
+                        if (e.target === this) {
+                            closeFileUpload();
+                        }
+                    });
+                </script>
 
                 <!-- Features Grid -->
                 <div class="grid md:grid-cols-3 gap-8 mt-20">

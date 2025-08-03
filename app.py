@@ -261,27 +261,49 @@ def send_file_route():
 # DOSYA YÜKLE
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    username = session.get('username')
-    if not username:
-        return redirect(url_for('login'))
-    user = User.query.filter_by(username=username).first()
-    if not user:
-        return "Kullanıcı bulunamadı!"
+    try:
+        username = session.get('username')
+        if not username:
+            return redirect(url_for('login'))
+        
+        user = User.query.filter_by(username=username).first()
+        if not user:
+            flash("Kullanıcı bulunamadı!", "error")
+            return redirect(url_for('user_home'))
 
-    file = request.files['file']
-    filename = file.filename
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    file.save(filepath)
+        file = request.files['file']
+        if not file or file.filename == '':
+            flash("Lütfen bir dosya seçin!", "error")
+            return redirect(url_for('user_home'))
 
-    file_size_mb = os.path.getsize(filepath) / (1024 * 1024)
-    if user.storage_quota < file_size_mb:
-        os.remove(filepath)
-        return "Yetersiz alan!"
+        filename = file.filename
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
 
-    user.storage_quota -= file_size_mb
-    db.session.add(File(filename=filename, email=user.email))
-    db.session.commit()
-    return f"{filename} yüklendi. Kalan alan: {round(user.storage_quota, 2)} MB"
+        file_size_mb = os.path.getsize(filepath) / (1024 * 1024)
+        
+        # Premium kullanıcılar için limit kontrolü yok
+        if not user.is_premium and user.storage_quota < file_size_mb:
+            os.remove(filepath)
+            flash("Yetersiz alan! Premium'a yükseltin.", "error")
+            return redirect(url_for('user_home'))
+
+        # Premium olmayan kullanıcılar için alan düşür
+        if not user.is_premium:
+            user.storage_quota -= file_size_mb
+        
+        db.session.add(File(filename=filename, email=user.email))
+        db.session.commit()
+        
+        flash(f"{filename} başarıyla yüklendi!", "success")
+        logger.info(f"User {username} uploaded file: {filename}")
+        
+        return redirect(url_for('user_home'))
+        
+    except Exception as e:
+        logger.error(f"Upload error: {str(e)}")
+        flash("Dosya yüklenirken bir hata oluştu!", "error")
+        return redirect(url_for('user_home'))
 
 
 # DOSYA İNDİR
