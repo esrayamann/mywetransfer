@@ -230,34 +230,75 @@ def cancel(username):
     return redirect(url_for('login'))
 
 # ÜYE OLMADAN DOSYA GÖNDER
-@app.route('/send_file', methods=['GET', 'POST'])
+ @app.route('/send_file', methods=['POST'])
 def send_file_route():
-    if request.method == 'POST':
-        sender_email = request.form['sender_email']
-        receiver_email = request.form['receiver_email']
+    try:
+        # Gerekli alanları al
+        sender_email = request.form.get('sender_email')
+        receiver_email = request.form.get('receiver_email')
+        
+        # Eğer kullanıcı giriş yapmışsa, gönderen email olarak kullanıcının emailini kullan
+        if 'username' in session:
+            user = User.query.filter_by(username=session['username']).first()
+            if user:
+                sender_email = user.email  # Giriş yapmış kullanıcının emailini kullan
+        
+        # Validasyonlar
+        if not sender_email or not receiver_email:
+            return jsonify({'error': 'Lütfen email adreslerini girin!'}), 400
+            
+        if 'file' not in request.files:
+            return jsonify({'error': 'Lütfen bir dosya seçin!'}), 400
+            
         file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'Geçersiz dosya!'}), 400
 
-        filename = file.filename
+        # Dosya boyutu kontrolü (maksimum 2GB)
+        max_size = 2 * 1024 * 1024 * 1024  # 2GB
+        file.seek(0, os.SEEK_END)
+        file_size = file.tell()
+        file.seek(0)
+        
+        if file_size > max_size:
+            return jsonify({'error': 'Dosya boyutu çok büyük! Maksimum 2GB'}), 400
+
+        # Dosyayı kaydet
+        filename = secure_filename(file.filename)
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
 
+        # Veritabanına kaydet
         new_file = File(
             filename=filename,
             email=receiver_email,
-            sender_email=sender_email
+            sender_email=sender_email,
+            user_id=user.id if 'username' in session else None  # Kullanıcı giriş yapmışsa user_id'yi kaydet
         )
         db.session.add(new_file)
         db.session.commit()
 
-        download_link = f"http://127.0.0.1:5000/download/{filename}"
-        send_download_link_mail(receiver_email, filename, download_link)
+        # İndirme linki oluştur
+        download_link = url_for('download_file', filename=filename, _external=True)
+        
+        # E-posta gönder (opsiyonel)
+        try:
+            send_download_link_mail(receiver_email, filename, download_link)
+            if sender_email != receiver_email:  # Kendine göndermiyorsa gönderene de bilgi ver
+                send_upload_confirmation(sender_email, filename)
+        except Exception as e:
+            logger.error(f"E-posta gönderilemedi: {str(e)}")
 
-        # --- Burada artık direkt string döndürmek yerine template render edelim ---
-        return render_template('success.html', download_link=download_link)
+        return jsonify({
+            'success': True,
+            'download_link': download_link,
+            'message': 'Dosya başarıyla gönderildi!'
+        })
 
-    return render_template('send_file.html')
-
-
+    except Exception as e:
+        logger.error(f"Dosya gönderilirken hata: {str(e)}")
+        return jsonify({'error': 'Dosya gönderilirken bir hata oluştu!'}), 500
+    
 # DOSYA YÜKLE
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -383,6 +424,27 @@ def send_download_notification(file_entry):
         server.send_message(msg_receiver)
         server.send_message(msg_sender)
 
+def send_upload_confirmation(sender_email, filename):
+    sender_address = os.getenv("MAIL_USERNAME")
+    password = os.getenv("MAIL_PASSWORD")
+
+    msg = MIMEMultipart()
+    msg['From'] = sender_address
+    msg['To'] = sender_email
+    msg['Subject'] = 'Dosya Gönderim Onayı'
+    
+    body = f"""
+    <p>Merhaba,</p>
+    <p><strong>{filename}</strong> dosyanız başarıyla gönderilmiştir.</p>
+    <p>Teşekkür ederiz.</p>
+    """
+    
+    msg.attach(MIMEText(body, 'html'))
+    
+    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+        server.login(sender_address, password)
+        server.send_message(msg)
+        
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()

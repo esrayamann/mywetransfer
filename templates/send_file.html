@@ -92,6 +92,19 @@
             0%, 100% { transform: translateY(0px) rotate(0deg); }
             50% { transform: translateY(-30px) rotate(180deg); }
         }
+        /* Drag area hover efekti */
+        .drag-area:hover {
+            background: rgba(255,255,255,0.15);
+            border-color: rgba(255,255,255,0.4);
+        }
+        /* Dosya önizleme animasyonu */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        #filePreview {
+            animation: fadeIn 0.3s ease-out;
+        }
     </style>
 </head>
 <body class="gradient-bg">
@@ -183,4 +196,151 @@
                         </label>
                         
                         <!-- Drag & Drop Area -->
-                        <div id="dragArea" class="drag-area rounded-2xl p-8 text-
+                        <div id="dragArea" class="drag-area rounded-2xl p-8 text-center cursor-pointer mb-4">
+                            <div id="dragContent">
+                                <i class="fas fa-cloud-upload-alt text-4xl text-white/60 mb-4"></i>
+                                <p class="text-white/80 mb-2">Dosyalarınızı sürükleyip bırakın veya</p>
+                                <button type="button" id="selectFileBtn" class="bg-white/10 text-white px-6 py-2 rounded-lg hover:bg-white/20 transition-colors">
+                                    Dosya Seç
+                                </button>
+                                <input type="file" id="fileInput" name="file" class="hidden" required>
+                            </div>
+                            <div id="filePreview" class="hidden">
+                                <div class="flex items-center justify-between bg-white/10 p-4 rounded-xl">
+                                    <div class="flex items-center">
+                                        <i class="fas fa-file text-white/80 mr-3"></i>
+                                        <span id="fileName" class="text-white"></span>
+                                    </div>
+                                    <button type="button" id="removeFileBtn" class="text-white/60 hover:text-white">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="text-white/60 text-sm">Maksimum dosya boyutu: 2GB</p>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-4 rounded-xl font-bold hover:from-green-600 hover:to-emerald-700 transition-all duration-300">
+                        <i class="fas fa-paper-plane mr-2"></i>Dosyayı Gönder
+                    </button>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Elementleri seç
+        const dragArea = document.getElementById('dragArea');
+        const selectFileBtn = document.getElementById('selectFileBtn');
+        const fileInput = document.getElementById('fileInput');
+        const dragContent = document.getElementById('dragContent');
+        const filePreview = document.getElementById('filePreview');
+        const fileName = document.getElementById('fileName');
+        const removeFileBtn = document.getElementById('removeFileBtn');
+        const sendFileForm = document.getElementById('sendFileForm');
+
+        // Dosya seç butonu eventi
+        selectFileBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // Dosya input değiştiğinde
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        // Drag & drop eventleri
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dragArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dragArea.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dragArea.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight() {
+            dragArea.classList.add('dragover');
+        }
+
+        function unhighlight() {
+            dragArea.classList.remove('dragover');
+        }
+
+        // Dosya bırakıldığında
+        dragArea.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const file = dt.files[0];
+            handleFile(file);
+        });
+
+        // Dosya işleme fonksiyonu
+        function handleFile(file) {
+            fileName.textContent = file.name;
+            dragContent.classList.add('hidden');
+            filePreview.classList.remove('hidden');
+            
+            // FormData'ya dosyayı ekle
+            if (fileInput.files.length === 0) {
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                fileInput.files = dataTransfer.files;
+            }
+        }
+
+        // Dosya kaldırma butonu
+        removeFileBtn.addEventListener('click', () => {
+            fileInput.value = '';
+            dragContent.classList.remove('hidden');
+            filePreview.classList.add('hidden');
+        });
+
+        // Form gönderimi
+        sendFileForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            // Yükleme durumunu göster
+            const submitBtn = sendFileForm.querySelector('button[type="submit"]');
+            const originalBtnText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Gönderiliyor...';
+            submitBtn.disabled = true;
+            
+            const formData = new FormData(sendFileForm);
+            
+            try {
+                const response = await fetch('/send_file', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Başarılı olduğunda yönlendirme yap
+                    window.location.href = result.download_link;
+                } else {
+                    alert(result.error || 'Dosya yüklenirken bir hata oluştu!');
+                    submitBtn.innerHTML = originalBtnText;
+                    submitBtn.disabled = false;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Dosya yüklenirken bir hata oluştu!');
+                submitBtn.innerHTML = originalBtnText;
+                submitBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

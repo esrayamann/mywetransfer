@@ -8,181 +8,340 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         .gradient-bg { 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
             min-height: 100vh;
         }
-        .glass { 
-            backdrop-filter: blur(10px); 
-            background: rgba(255, 255, 255, 0.1); 
+        .glass {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
-        .glass-card {
-            background: rgba(255, 255, 255, 0.2);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.3);
+        .drag-area {
+            border: 2px dashed rgba(55, 65, 81, 0.3);
+            transition: all 0.3s ease;
         }
-        .storage-bar {
-            height: 10px;
-            border-radius: 5px;
-            overflow: hidden;
+        .drag-area.dragover {
+            border-color: #10b981;
+            background: rgba(16, 185, 129, 0.1);
         }
-        .storage-fill {
-            height: 100%;
-            transition: width 0.5s ease;
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .file-preview {
+            animation: fadeIn 0.3s ease-out;
         }
     </style>
 </head>
 <body class="gradient-bg">
     <!-- Header -->
-    <header class="glass sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 py-4">
-            <div class="flex items-center justify-between">
-                <!-- Logo -->
-                <div class="flex items-center space-x-3">
-                    <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                        <i class="fas fa-share-alt text-white text-xl"></i>
-                    </div>
-                    <h1 class="text-2xl font-bold text-white">WeTransfer Clone</h1>
+    <header class="bg-white shadow-sm">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center">
+                    <i class="fas fa-share-alt text-white text-xl"></i>
                 </div>
-
-                <!-- Logout Button -->
-                <div class="flex items-center space-x-3">
-                    <a href="{{ url_for('logout') }}" class="bg-red-500 text-white px-6 py-2 rounded-lg font-semibold hover:bg-red-600 transition-colors">
-                        <i class="fas fa-sign-out-alt mr-2"></i>Çıkış Yap
-                    </a>
-                </div>
+                <h1 class="text-2xl font-bold text-gray-800">Hoş Geldiniz, {{ username }}</h1>
             </div>
+            <nav class="flex items-center space-x-4">
+                <a href="/logout" class="text-gray-600 hover:text-gray-900">
+                    <i class="fas fa-sign-out-alt mr-1"></i>Çıkış Yap
+                </a>
+            </nav>
         </div>
     </header>
 
-    <!-- User Panel Content -->
-    <main class="max-w-4xl mx-auto px-4 py-10">
-        <!-- Flash Messages -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                <div class="{% if category == 'error' %}bg-red-500/20 border-red-500/50 text-red-200{% else %}bg-green-500/20 border-green-500/50 text-green-200{% endif %} border rounded-xl p-4 mb-6">
-                    <div class="flex items-center">
-                        <i class="fas {% if category == 'error' %}fa-exclamation-triangle text-red-400{% else %}fa-check-circle text-green-400{% endif %} mr-3"></i>
-                        <p>{{ message }}</p>
-                    </div>
-                </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-
-        <div class="glass rounded-2xl p-8">
-            <!-- Welcome Section -->
-            <div class="mb-10">
-                <h2 class="text-3xl font-bold text-white mb-2">Hoş geldin, <span class="text-blue-300">{{ username }}</span></h2>
-                <div class="flex items-center mt-4">
-                    <div class="w-10 h-10 bg-{{ 'yellow' if is_premium else 'gray' }}-500/20 rounded-xl flex items-center justify-center mr-3">
-                        <i class="fas fa-{{ 'crown' if is_premium else 'user' }} text-{{ 'yellow' if is_premium else 'gray' }}-300 text-xl"></i>
+    <!-- Main Content -->
+    <main class="max-w-6xl mx-auto px-4 py-8">
+        <div class="grid md:grid-cols-3 gap-8">
+            <!-- User Info Card -->
+            <div class="glass rounded-2xl p-6 shadow-sm">
+                <div class="flex items-center space-x-4 mb-6">
+                    <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                        <i class="fas fa-user text-blue-500 text-2xl"></i>
                     </div>
                     <div>
-                        <p class="text-white/70 text-sm">Üyelik Türü</p>
-                        <p class="text-lg font-bold text-white">{{ premium_status }}</p>
+                        <h2 class="text-xl font-semibold text-gray-800">{{ username }}</h2>
+                        <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold 
+                                  {{ 'bg-green-100 text-green-800' if is_premium else 'bg-gray-100 text-gray-800' }}">
+                            {{ premium_status }}
+                        </span>
                     </div>
                 </div>
-            </div>
-
-            <!-- Storage Info - Simplified Version -->
-            <div class="glass-card rounded-xl p-6 mb-8">
-                <h3 class="text-xl font-bold text-white mb-4">Depolama Durumu</h3>
-                <p class="text-white mb-2">Kullanılan Alan: <span class="font-bold">{{ storage_quota }} MB</span></p>
-                {% if is_premium %}
-                    <p class="text-green-300">Premium üye olduğunuz için depolama limitiniz yok</p>
-                {% else %}
-                    <p class="text-white">Ücretsiz depolama limiti: <span class="font-bold">2 GB</span></p>
-                    <div class="storage-bar bg-gray-700/30 mt-3">
-                        <div class="storage-fill bg-gradient-to-r from-blue-500 to-indigo-600" 
-                             style="width: {{ (storage_quota / 2048) * 100 if storage_quota < 2048 else 100 }}%"></div>
+                <div class="space-y-3">
+                    <div>
+                        <p class="text-sm text-gray-500">Depolama Alanı</p>
+                        <div class="w-full bg-gray-200 rounded-full h-2.5 mt-1">
+                            <div class="bg-blue-600 h-2.5 rounded-full" 
+                                 style="width: {{ (5120 - storage_quota) / 5120 * 100 }}%"></div>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">
+                            {{ "%.2f"|format(5120 - storage_quota) }} MB / 5120 MB kullanılıyor
+                        </p>
                     </div>
-                    <p class="text-right text-sm text-white/50 mt-1">
-                        {% if storage_quota < 2048 %}
-                            {{ (2048 - storage_quota) }} MB boş alan
-                        {% else %}
-                            Depolama alanınız dolu
-                        {% endif %}
-                    </p>
-                {% endif %}
+                    {% if not is_premium %}
+                    <a href="/upgrade/{{ username }}" class="block text-center bg-gradient-to-r from-yellow-400 to-yellow-500 text-white py-2 rounded-lg font-medium hover:from-yellow-500 hover:to-yellow-600 transition-all">
+                        Premium'a Yükselt
+                    </a>
+                    {% endif %}
+                </div>
             </div>
 
             <!-- File Upload Section -->
-            <div class="glass-card rounded-xl p-6 mb-8">
-                <h3 class="text-xl font-bold text-white mb-4">Dosya Gönder</h3>
-                <button onclick="openUserFileUpload()" class="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-4 rounded-lg font-bold hover:from-blue-600 hover:to-indigo-700 transition-all">
-                    <i class="fas fa-cloud-upload-alt mr-2"></i>Yeni Dosya Gönder
-                </button>
-            </div>
-
-            <!-- Premium Section -->
-            <div class="glass-card rounded-xl p-6">
-                <h3 class="text-xl font-bold text-white mb-4">Premium Üyelik</h3>
-                
-                {% if not is_premium %}
-                    <div class="mb-4">
-                        <p class="text-white/70 mb-2">Premium özellikler:</p>
-                        <ul class="text-white text-sm list-disc list-inside space-y-1">
-                            <li>Sınırsız depolama alanı</li>
-                            <li>Daha büyük dosya yükleme</li>
-                            <li>Reklamsız deneyim</li>
-                        </ul>
-                    </div>
-                    <a href="/upgrade/{{ username }}" class="inline-block bg-gradient-to-r from-yellow-500 to-amber-600 text-white px-6 py-3 rounded-lg font-bold">
-                        <i class="fas fa-crown mr-2"></i>Premium'a Yükselt
-                    </a>
-                {% else %}
-                    <p class="text-white mb-4">Premium üyeliğiniz aktif!</p>
-                    <form method="POST" action="/cancel/{{ username }}">
-                        <button type="submit" class="bg-gray-600 text-white px-6 py-3 rounded-lg font-bold">
-                            <i class="fas fa-times-circle mr-2"></i>Üyeliği İptal Et
-                        </button>
-                    </form>
-                {% endif %}
-            </div>
-
-            <!-- User File Upload Modal -->
-            <div id="userFileUploadModal" class="fixed inset-0 bg-black/50 hidden z-50 flex items-center justify-center">
-                <div class="glass rounded-2xl p-8 max-w-md w-full mx-4">
-                    <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-2xl font-bold text-white">Dosya Gönder</h3>
-                        <button onclick="closeUserFileUpload()" class="text-white/70 hover:text-white">
-                            <i class="fas fa-times text-xl"></i>
-                        </button>
-                    </div>
+            <div class="md:col-span-2 space-y-6">
+                <!-- Quick Send Card -->
+                <div class="glass rounded-2xl p-6 shadow-sm">
+                    <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-paper-plane text-blue-500 mr-2"></i>
+                        Hızlı Dosya Gönder
+                    </h2>
                     
-                    <form action="/upload" method="POST" enctype="multipart/form-data" class="space-y-4">
-                        <div>
-                            <label class="block text-white/80 mb-2">Dosya Seç</label>
-                            <input type="file" name="file" required 
-                                   class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-white/20 file:text-white hover:file:bg-white/30">
+                    <form id="quickSendForm" class="space-y-4" enctype="multipart/form-data">
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Gönderen Email</label>
+                                <input type="email" name="sender_email" required
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                       value="{{ session.get('email', '') }}">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Alıcı Email</label>
+                                <input type="email" name="receiver_email" required
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                            </div>
                         </div>
                         
-                        <button type="submit" class="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-3 rounded-lg font-bold hover:from-blue-600 hover:to-indigo-700 transition-all">
-                            <i class="fas fa-upload mr-2"></i>Dosyayı Yükle
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Dosya Seç</label>
+                            <div id="dragArea" class="drag-area rounded-lg p-6 text-center cursor-pointer border-2 border-dashed border-gray-300 hover:border-gray-400 transition-colors">
+                                <div id="dragContent">
+                                    <i class="fas fa-cloud-upload-alt text-3xl text-gray-400 mb-3"></i>
+                                    <p class="text-gray-500 mb-2">Dosyalarınızı sürükleyip bırakın veya</p>
+                                    <button type="button" id="selectFileBtn" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors">
+                                        Dosya Seç
+                                    </button>
+                                    <input type="file" id="fileInput" name="file" class="hidden" required>
+                                </div>
+                                <div id="filePreview" class="hidden mt-4">
+                                    <div class="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-file text-gray-500 mr-3"></i>
+                                            <span id="fileName" class="text-gray-700"></span>
+                                        </div>
+                                        <button type="button" id="removeFileBtn" class="text-gray-400 hover:text-gray-600">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">Maksimum dosya boyutu: {{ '20GB' if is_premium else '2GB' }}</p>
+                        </div>
+                        
+                        <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center">
+                            <i class="fas fa-paper-plane mr-2"></i>Dosyayı Gönder
                         </button>
                     </form>
                 </div>
-            </div>
 
-            <script>
-                function openUserFileUpload() {
-                    document.getElementById('userFileUploadModal').classList.remove('hidden');
-                }
-                
-                function closeUserFileUpload() {
-                    document.getElementById('userFileUploadModal').classList.add('hidden');
-                }
-                
-                // Modal dışına tıklandığında kapat
-                document.getElementById('userFileUploadModal').addEventListener('click', function(e) {
-                    if (e.target === this) {
-                        closeUserFileUpload();
-                    }
-                });
-            </script>
+                <!-- Recent Files Section -->
+                <div class="glass rounded-2xl p-6 shadow-sm">
+                    <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-history text-blue-500 mr-2"></i>
+                        Son Gönderilenler
+                    </h2>
+                    <div class="space-y-3">
+                        <!-- Buraya son gönderilen dosyaların listesi gelecek -->
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div class="flex items-center">
+                                <i class="fas fa-file-pdf text-red-500 mr-3"></i>
+                                <span class="text-gray-700">document.pdf</span>
+                            </div>
+                            <span class="text-sm text-gray-500">2 gün önce</span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div class="flex items-center">
+                                <i class="fas fa-file-image text-green-500 mr-3"></i>
+                                <span class="text-gray-700">image.png</span>
+                            </div>
+                            <span class="text-sm text-gray-500">1 hafta önce</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </main>
+
+    <script>
+        // Elementleri seç
+        const dragArea = document.getElementById('dragArea');
+        const selectFileBtn = document.getElementById('selectFileBtn');
+        const fileInput = document.getElementById('fileInput');
+        const dragContent = document.getElementById('dragContent');
+        const filePreview = document.getElementById('filePreview');
+        const fileName = document.getElementById('fileName');
+        const removeFileBtn = document.getElementById('removeFileBtn');
+        const quickSendForm = document.getElementById('quickSendForm');
+
+        // Dosya seç butonu eventi
+        selectFileBtn.addEventListener('click', () => fileInput.click());
+
+        // Dosya input değiştiğinde
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) handleFile(e.target.files[0]);
+        });
+
+        // Drag & drop eventleri
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dragArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dragArea.addEventListener(eventName, () => dragArea.classList.add('dragover'));
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dragArea.addEventListener(eventName, () => dragArea.classList.remove('dragover'));
+        });
+
+        // Dosya bırakıldığında
+        dragArea.addEventListener('drop', (e) => {
+            const file = e.dataTransfer.files[0];
+            handleFile(file);
+        });
+
+        // Dosya işleme fonksiyonu
+        function handleFile(file) {
+            fileName.textContent = file.name;
+            dragContent.classList.add('hidden');
+            filePreview.classList.remove('hidden');
+            
+            // FormData'ya dosyayı ekle
+            if (fileInput.files.length === 0) {
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                fileInput.files = dataTransfer.files;
+            }
+        }
+
+        // Dosya kaldırma butonu
+        removeFileBtn.addEventListener('click', () => {
+            fileInput.value = '';
+            dragContent.classList.remove('hidden');
+            filePreview.classList.add('hidden');
+        });
+
+        // Form gönderimi
+       // Form gönderimi
+quickSendForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const submitBtn = quickSendForm.querySelector('button[type="submit"]');
+    const originalBtnText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Gönderiliyor...';
+    submitBtn.disabled = true;
+    
+    const formData = new FormData(quickSendForm);
+    
+    try {
+        const response = await fetch('/send_file', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Başarılı olduğunda modal göster
+            showSuccessModal(result.download_link);
+        } else {
+            showErrorModal(result.error || 'Dosya gönderilirken bir hata oluştu!');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showErrorModal('Dosya gönderilirken bir hata oluştu!');
+    } finally {
+        submitBtn.innerHTML = originalBtnText;
+        submitBtn.disabled = false;
+    }
+});
+
+// Başarı modalını göster
+function showSuccessModal(downloadLink) {
+    const modalHTML = `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-check text-green-500 text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-800 mb-2">Başarılı!</h3>
+                    <p class="text-gray-600 mb-4">Dosyanız başarıyla gönderildi.</p>
+                    
+                    <div class="bg-gray-100 p-3 rounded-lg mb-4 text-left">
+                        <p class="text-sm text-gray-500 mb-1">İndirme Linki:</p>
+                        <a href="${downloadLink}" target="_blank" class="text-blue-500 break-all">${downloadLink}</a>
+                    </div>
+                    
+                    <button onclick="closeModal()" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                        Tamam
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    const modal = document.createElement('div');
+    modal.id = 'successModal';
+    modal.innerHTML = modalHTML;
+    document.body.appendChild(modal);
+}
+
+// Hata modalını göster
+function showErrorModal(message) {
+    const modalHTML = `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-times text-red-500 text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-800 mb-2">Hata!</h3>
+                    <p class="text-gray-600 mb-4">${message}</p>
+                    <button onclick="closeModal()" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                        Tamam
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    const modal = document.createElement('div');
+    modal.id = 'errorModal';
+    modal.innerHTML = modalHTML;
+    document.body.appendChild(modal);
+}
+
+// Modalı kapat
+function closeModal() {
+    const successModal = document.getElementById('successModal');
+    const errorModal = document.getElementById('errorModal');
+    
+    if (successModal) successModal.remove();
+    if (errorModal) errorModal.remove();
+    
+    // Formu temizle (sadece başarılıysa)
+    if (successModal) {
+        quickSendForm.reset();
+        fileInput.value = '';
+        dragContent.classList.remove('hidden');
+        filePreview.classList.add('hidden');
+    }
+}
+    </script>
 </body>
 </html>
