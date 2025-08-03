@@ -10,7 +10,20 @@
 ### 2. Environment Variables
 Proje kök dizininde `.env` dosyası oluşturun:
 
+**Yöntem 1: Manuel oluşturma**
 ```bash
+# Terminal'de proje dizininde:
+touch .env
+```
+
+**Yöntem 2: Örnek dosyadan kopyalama**
+```bash
+cp env.example .env
+```
+
+**Yöntem 3: Terminal ile içerik ekleme**
+```bash
+cat > .env << 'EOF'
 # Database Configuration
 DATABASE_URL=postgresql://username:password@localhost:5432/database_name
 
@@ -24,7 +37,10 @@ MAIL_PASSWORD=your-app-password
 # Flask Configuration
 FLASK_ENV=production
 FLASK_DEBUG=False
+EOF
 ```
+
+**Önemli:** `.env` dosyası git'e yüklenmez (güvenlik nedeniyle). Her sunucuda ayrı ayrı oluşturmanız gerekir.
 
 ### 3. Kurulum Adımları
 ```bash
