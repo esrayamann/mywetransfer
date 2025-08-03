@@ -1,16 +1,36 @@
-from flask import Flask, request, redirect, url_for, send_from_directory, session, render_template
+from flask import Flask, request, redirect, url_for, send_from_directory, session, render_template, flash
 from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import os
 import smtplib
+import logging
+
+# Logging setup
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+
+# Database configuration with fallback
+database_url = os.getenv('DATABASE_URL')
+if not database_url:
+    logger.error("DATABASE_URL not found in environment variables!")
+    database_url = "sqlite:///app.db"  # Fallback to SQLite for development
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Secret key configuration with fallback
+secret_key = os.getenv('SECRET_KEY')
+if not secret_key:
+    logger.warning("SECRET_KEY not found, using default key!")
+    secret_key = "dev-secret-key-change-in-production"
+
+app.config['SECRET_KEY'] = secret_key
 app.config['UPLOAD_FOLDER'] = 'uploads'
 
 db = SQLAlchemy(app)
@@ -42,42 +62,99 @@ if not os.path.exists('uploads'):
 def home():
     return render_template('base.html')
 
+# HEALTH CHECK
+@app.route('/health')
+def health_check():
+    try:
+        # Test database connection
+        from sqlalchemy import text
+        db.session.execute(text('SELECT 1'))
+        db_status = "OK"
+    except Exception as e:
+        logger.error(f"Database connection error: {str(e)}")
+        db_status = f"ERROR: {str(e)}"
+    
+    return {
+        'status': 'OK',
+        'database': db_status,
+        'env_vars': {
+            'DATABASE_URL_set': bool(os.getenv('DATABASE_URL')),
+            'SECRET_KEY_set': bool(os.getenv('SECRET_KEY')),
+            'MAIL_USERNAME_set': bool(os.getenv('MAIL_USERNAME')),
+            'MAIL_PASSWORD_set': bool(os.getenv('MAIL_PASSWORD'))
+        }
+    }
+
 
 
 # KAYIT OL
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    if request.method == 'POST':
-        username = request.form['username']
-        email = request.form['email']
-        password = request.form['password']
+    try:
+        if request.method == 'POST':
+            username = request.form['username']
+            email = request.form['email']
+            password = request.form['password']
 
-        new_user = User(username=username, email=email, password=password)
-        db.session.add(new_user)
-        db.session.commit()
+            # Check if user already exists
+            existing_user = User.query.filter_by(username=username).first()
+            if existing_user:
+                flash("Bu kullanıcı adı zaten kullanılıyor.", "error")
+                return render_template('register.html', error="Bu kullanıcı adı zaten kullanılıyor.")
 
-        return redirect(url_for('login'))
-    return render_template('register.html')
+            existing_email = User.query.filter_by(email=email).first()
+            if existing_email:
+                flash("Bu email adresi zaten kullanılıyor.", "error")
+                return render_template('register.html', error="Bu email adresi zaten kullanılıyor.")
+
+            new_user = User(username=username, email=email, password=password)
+            db.session.add(new_user)
+            db.session.commit()
+
+            logger.info(f"New user registered: {username}")
+            flash("Kayıt başarılı! Giriş yapabilirsiniz.", "success")
+            return redirect(url_for('login'))
+        
+        return render_template('register.html')
+    
+    except Exception as e:
+        logger.error(f"Registration error: {str(e)}")
+        db.session.rollback()
+        flash("Kayıt olurken bir hata oluştu. Lütfen tekrar deneyin.", "error")
+        return render_template('register.html', error="Sistem hatası. Lütfen tekrar deneyin.")
 
 
 # GİRİŞ
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        user = User.query.filter_by(username=username, password=password).first()
+    try:
+        if request.method == 'POST':
+            username = request.form['username']
+            password = request.form['password']
+            
+            logger.info(f"Login attempt for user: {username}")
+            
+            user = User.query.filter_by(username=username, password=password).first()
 
-        if user:
-            session['username'] = user.username
+            if user:
+                session['username'] = user.username
+                logger.info(f"User {username} logged in successfully")
 
-            if user.role == 'admin':
-                return redirect(url_for('admin_panel'))
+                if user.role == 'admin':
+                    return redirect(url_for('admin_panel'))
+                else:
+                    return redirect(url_for('user_home'))
             else:
-                return redirect(url_for ('user_home'))
-
-        return "Geçersiz kullanıcı adı veya şifre."
-    return render_template('login.html')
+                logger.warning(f"Failed login attempt for user: {username}")
+                flash("Geçersiz kullanıcı adı veya şifre.", "error")
+                return render_template('login.html', error="Geçersiz kullanıcı adı veya şifre.")
+        
+        return render_template('login.html')
+    
+    except Exception as e:
+        logger.error(f"Login error: {str(e)}")
+        flash("Giriş yapılırken bir hata oluştu. Lütfen tekrar deneyin.", "error")
+        return render_template('login.html', error="Sistem hatası. Lütfen tekrar deneyin.")
 
 # ÇIKIŞ
 @app.route('/logout')

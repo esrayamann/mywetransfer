@@ -135,6 +135,30 @@
                     <p class="text-white/70">Dosya paylaşımının keyfini çıkarmak için kayıt olun</p>
                 </div>
 
+                <!-- Error Messages -->
+                {% if error %}
+                <div class="bg-red-500/20 border border-red-500/50 rounded-xl p-4 mb-6">
+                    <div class="flex items-center">
+                        <i class="fas fa-exclamation-triangle text-red-400 mr-3"></i>
+                        <p class="text-red-200">{{ error }}</p>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                        <div class="{% if category == 'error' %}bg-red-500/20 border-red-500/50 text-red-200{% else %}bg-green-500/20 border-green-500/50 text-green-200{% endif %} border rounded-xl p-4 mb-6">
+                            <div class="flex items-center">
+                                <i class="fas {% if category == 'error' %}fa-exclamation-triangle text-red-400{% else %}fa-check-circle text-green-400{% endif %} mr-3"></i>
+                                <p>{{ message }}</p>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
                 <form method="POST" class="space-y-6">
                     <div>
                         <label for="username" class="block text-white/80 mb-2">Kullanıcı Adı</label>
