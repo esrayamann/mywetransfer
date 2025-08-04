@@ -171,15 +171,15 @@
                             </div>
                             
                             <div>
-                                <label class="block text-white/80 mb-2">Dosya Seç</label>
-                                <input type="file" name="file" required 
+                                <label class="block text-white/80 mb-2">Dosya veya Klasör Seç</label>
+                                <input type="file" name="file" id="fileInput" required multiple webkitdirectory 
                                        class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-white/20 file:text-white hover:file:bg-white/30 cursor-pointer"
                                        accept="*/*">
-                                <p class="text-white/60 text-sm mt-1">Maksimum dosya boyutu: 2GB</p>
+                                <p class="text-white/60 text-sm mt-1">Birden fazla dosya veya klasör seçebilirsiniz. Maksimum dosya boyutu: 2GB</p>
                             </div>
                             
                             <button type="submit" class="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 rounded-lg font-bold hover:from-green-600 hover:to-emerald-700 transition-all">
-                                <i class="fas fa-paper-plane mr-2"></i>Dosyayı Gönder
+                                <i class="fas fa-paper-plane mr-2"></i>Gönder
                             </button>
                         </form>
                     </div>
