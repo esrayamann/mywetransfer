@@ -172,9 +172,11 @@
                             
                             <div>
                                 <label class="block text-white/80 mb-2">Dosya veya Klasör Seç</label>
-                                <input type="file" name="file" id="fileInput" required multiple webkitdirectory 
-                                       class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-white/20 file:text-white hover:file:bg-white/30 cursor-pointer"
-                                       accept="*/*">
+                                <div class="flex gap-2 mb-2">
+                                    <button type="button" onclick="setFileMode('file')" class="bg-blue-600 text-white px-4 py-2 rounded">Dosya Seç</button>
+                                    <button type="button" onclick="setFileMode('folder')" class="bg-green-600 text-white px-4 py-2 rounded">Klasör Seç</button>
+                                </div>
+                                <input type="file" name="file" id="fileInput" class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white" multiple>
                                 <p class="text-white/60 text-sm mt-1">Birden fazla dosya veya klasör seçebilirsiniz. Maksimum dosya boyutu: 2GB</p>
                             </div>
                             
@@ -239,6 +241,18 @@
                             submitButton.disabled = false;
                         });
                     });
+
+                    function setFileMode(mode) {
+                        const input = document.getElementById('fileInput');
+                        input.value = '';
+                        if (mode === 'file') {
+                            input.removeAttribute('webkitdirectory');
+                            input.setAttribute('multiple', '');
+                        } else if (mode === 'folder') {
+                            input.removeAttribute('multiple');
+                            input.setAttribute('webkitdirectory', '');
+                        }
+                    }
                 </script>
 
                 <!-- Features Grid -->
