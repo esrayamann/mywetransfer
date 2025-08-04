@@ -1,8 +1,9 @@
-from flask import Flask, request, redirect, url_for, send_from_directory, session, render_template, flash
+from flask import Flask, request, redirect, url_for, send_from_directory, session, render_template, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from werkzeug.utils import secure_filename
 import os
 import smtplib
 import logging
@@ -42,6 +43,7 @@ class File(db.Model):
     filename = db.Column(db.String(120), nullable=False)
     email = db.Column(db.String(120))# Alıcı
     sender_email = db.Column(db.String(120))  # Gönderen
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # Kullanıcı ID (opsiyonel)
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -230,7 +232,7 @@ def cancel(username):
     return redirect(url_for('login'))
 
 # ÜYE OLMADAN DOSYA GÖNDER
- @app.route('/send_file', methods=['POST'])
+@app.route('/send_file', methods=['POST'])
 def send_file_route():
     try:
         # Gerekli alanları al
@@ -238,6 +240,7 @@ def send_file_route():
         receiver_email = request.form.get('receiver_email')
         
         # Eğer kullanıcı giriş yapmışsa, gönderen email olarak kullanıcının emailini kullan
+        user = None
         if 'username' in session:
             user = User.query.filter_by(username=session['username']).first()
             if user:
@@ -273,7 +276,7 @@ def send_file_route():
             filename=filename,
             email=receiver_email,
             sender_email=sender_email,
-            user_id=user.id if 'username' in session else None  # Kullanıcı giriş yapmışsa user_id'yi kaydet
+            user_id=user.id if user else None  # Kullanıcı giriş yapmışsa user_id'yi kaydet
         )
         db.session.add(new_file)
         db.session.commit()
