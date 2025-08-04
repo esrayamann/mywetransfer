@@ -7,6 +7,11 @@ from werkzeug.utils import secure_filename
 import os
 import smtplib
 import logging
+from werkzeug.security import generate_password_hash, check_password_hash
+import zipfile
+import tempfile
+import uuid
+import re
 
 # Logging setup
 logging.basicConfig(level=logging.INFO)
@@ -58,6 +63,8 @@ class User(db.Model):
 if not os.path.exists('uploads'):
     os.makedirs('uploads')
 
+if app.config.get('ENV') == 'development':
+    app.jinja_env.cache = {}
 
 # ANA SAYFA
 @app.route('/')
@@ -109,7 +116,8 @@ def register():
                 flash("Bu email adresi zaten kullanılıyor.", "error")
                 return render_template('register.html', error="Bu email adresi zaten kullanılıyor.")
 
-            new_user = User(username=username, email=email, password=password)
+            hashed_password = generate_password_hash(password)
+            new_user = User(username=username, email=email, password=hashed_password)
             db.session.add(new_user)
             db.session.commit()
 
@@ -136,9 +144,8 @@ def login():
             
             logger.info(f"Login attempt for user: {username}")
             
-            user = User.query.filter_by(username=username, password=password).first()
-
-            if user:
+            user = User.query.filter_by(username=username).first()
+            if user and (check_password_hash(user.password, password) or user.password == password):
                 session['username'] = user.username
                 logger.info(f"User {username} logged in successfully")
 
@@ -249,31 +256,60 @@ def send_file_route():
         # Validasyonlar
         if not sender_email or not receiver_email:
             return jsonify({'error': 'Lütfen email adreslerini girin!'}), 400
-            
+        
         if 'file' not in request.files:
-            return jsonify({'error': 'Lütfen bir dosya seçin!'}), 400
-            
-        file = request.files['file']
-        if file.filename == '':
+            return jsonify({'error': 'Lütfen bir dosya veya klasör seçin!'}), 400
+        
+        files = request.files.getlist('file')
+        if not files or all(f.filename == '' for f in files):
             return jsonify({'error': 'Geçersiz dosya!'}), 400
 
-        # Dosya boyutu kontrolü (maksimum 2GB)
-        max_size = 2 * 1024 * 1024 * 1024  # 2GB
-        file.seek(0, os.SEEK_END)
-        file_size = file.tell()
-        file.seek(0)
-        
-        if file_size > max_size:
-            return jsonify({'error': 'Dosya boyutu çok büyük! Maksimum 2GB'}), 400
+        # E-posta formatı kontrolü
+        email_regex = r"^[\w\.-]+@[\w\.-]+\.\w+$"
+        if not re.match(email_regex, sender_email):
+            return jsonify({'error': 'Gönderen e-posta adresi geçersiz!'}), 400
+        if not re.match(email_regex, receiver_email):
+            return jsonify({'error': 'Alıcı e-posta adresi geçersiz!'}), 400
 
-        # Dosyayı kaydet
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
+        # Dosya uzantısı kontrolü (örnek whitelist)
+        allowed_extensions = {'.pdf', '.jpg', '.jpeg', '.png', '.zip', '.txt', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.csv', '.mp4', '.mp3', '.avi', '.mov', '.rar'}
+        for file in files:
+            ext = os.path.splitext(file.filename)[1].lower()
+            if ext not in allowed_extensions:
+                return jsonify({'error': f'İzin verilmeyen dosya türü: {ext}'}), 400
+
+        # Dosya boyutu kontrolü (maksimum 2GB toplam)
+        max_size = 2 * 1024 * 1024 * 1024  # 2GB
+        total_size = 0
+        for file in files:
+            file.seek(0, os.SEEK_END)
+            total_size += file.tell()
+            file.seek(0)
+        if total_size > max_size:
+            return jsonify({'error': 'Toplam dosya boyutu çok büyük! Maksimum 2GB'}), 400
+
+        # Geçici klasöre dosyaları kaydet
+        with tempfile.TemporaryDirectory() as temp_dir:
+            file_paths = []
+            for file in files:
+                filename = secure_filename(file.filename)
+                file_path = os.path.join(temp_dir, filename)
+                os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                file.save(file_path)
+                file_paths.append((filename, file_path))
+
+            # Zip dosyası için benzersiz isim (UUID)
+            zip_uuid = uuid.uuid4().hex
+            zip_filename = f"upload_{zip_uuid}.zip"
+            zip_filepath = os.path.join(app.config['UPLOAD_FOLDER'], zip_filename)
+            with zipfile.ZipFile(zip_filepath, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for filename, file_path in file_paths:
+                    safe_name = os.path.basename(filename)
+                    zipf.write(file_path, arcname=safe_name)
 
         # Veritabanına kaydet
         new_file = File(
-            filename=filename,
+            filename=zip_filename,
             email=receiver_email,
             sender_email=sender_email,
             user_id=user.id if user else None  # Kullanıcı giriş yapmışsa user_id'yi kaydet
@@ -282,20 +318,20 @@ def send_file_route():
         db.session.commit()
 
         # İndirme linki oluştur
-        download_link = url_for('download_file', filename=filename, _external=True)
+        download_link = url_for('download_file', filename=zip_filename, _external=True)
         
         # E-posta gönder (opsiyonel)
         try:
-            send_download_link_mail(receiver_email, filename, download_link)
+            send_download_link_mail(receiver_email, zip_filename, download_link)
             if sender_email != receiver_email:  # Kendine göndermiyorsa gönderene de bilgi ver
-                send_upload_confirmation(sender_email, filename)
+                send_upload_confirmation(sender_email, zip_filename)
         except Exception as e:
             logger.error(f"E-posta gönderilemedi: {str(e)}")
 
         return jsonify({
             'success': True,
             'download_link': download_link,
-            'message': 'Dosya başarıyla gönderildi!'
+            'message': 'Dosya(lar) başarıyla gönderildi!'
         })
 
     except Exception as e:
@@ -406,26 +442,24 @@ def send_download_notification(file_entry):
     sender_address = os.getenv("MAIL_USERNAME")
     password = os.getenv("MAIL_PASSWORD")
 
-    # Alıcıya bilgi
-    msg_receiver = MIMEMultipart()
-    msg_receiver['From'] = sender_address
-    msg_receiver['To'] = receiver_email
-    msg_receiver['Subject'] = 'Dosyanız İndirildi!'
-    msg_receiver.attach(MIMEText(
-        f'{filename} dosyası başarıyla indirildi.', 'plain'))
-
     # Gönderene bilgi
     msg_sender = MIMEMultipart()
     msg_sender['From'] = sender_address
     msg_sender['To'] = sender_email
     msg_sender['Subject'] = 'Gönderdiğiniz Dosya İndirildi!'
     msg_sender.attach(MIMEText(
-        f'{filename} isimli gönderdiğiniz dosya {receiver_email} tarafından indirildi.', 'plain'))
+        f"""
+        <p>Merhaba,</p>
+        <p>Gönderdiğiniz <strong>{filename}</strong> isimli dosya <strong>{receiver_email}</strong> tarafından indirildi.</p>
+        <p>Teşekkürler,<br>WeTransfer Clone</p>
+        """, 'html'))
 
-    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-        server.login(sender_address, password)
-        server.send_message(msg_receiver)
-        server.send_message(msg_sender)
+    try:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            server.login(sender_address, password)
+            server.send_message(msg_sender)
+    except Exception as e:
+        logger.error(f"İndirme bildirimi gönderilemedi: {str(e)}")
 
 def send_upload_confirmation(sender_email, filename):
     sender_address = os.getenv("MAIL_USERNAME")

@@ -120,7 +120,7 @@
                                     <button type="button" id="selectFileBtn" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors">
                                         Dosya Seç
                                     </button>
-                                    <input type="file" id="fileInput" name="file" class="hidden" required>
+                                    <input type="file" id="fileInput" name="file" class="hidden" required multiple webkitdirectory>
                                 </div>
                                 <div id="filePreview" class="hidden mt-4">
                                     <div class="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
@@ -134,7 +134,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <p class="text-xs text-gray-500 mt-1">Maksimum dosya boyutu: {{ '20GB' if is_premium else '2GB' }}</p>
+                            <p class="text-xs text-gray-500 mt-1">Birden fazla dosya veya klasör seçebilirsiniz. Maksimum dosya boyutu: {{ '20GB' if is_premium else '2GB' }}</p>
                         </div>
                         
                         <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center">
