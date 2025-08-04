@@ -173,7 +173,9 @@
                             <div>
                                 <label class="block text-white/80 mb-2">Dosya Seç</label>
                                 <input type="file" name="file" required 
-                                       class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-white/20 file:text-white hover:file:bg-white/30">
+                                       class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-white/20 file:text-white hover:file:bg-white/30 cursor-pointer"
+                                       accept="*/*">
+                                <p class="text-white/60 text-sm mt-1">Maksimum dosya boyutu: 2GB</p>
                             </div>
                             
                             <button type="submit" class="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 rounded-lg font-bold hover:from-green-600 hover:to-emerald-700 transition-all">
@@ -186,10 +188,12 @@
                 <script>
                     function openFileUpload() {
                         document.getElementById('fileUploadModal').classList.remove('hidden');
+                        document.body.style.overflow = 'hidden'; // Sayfa kaydırmayı engelle
                     }
                     
                     function closeFileUpload() {
                         document.getElementById('fileUploadModal').classList.add('hidden');
+                        document.body.style.overflow = 'auto'; // Sayfa kaydırmayı geri aç
                     }
                     
                     // Modal dışına tıklandığında kapat
@@ -197,6 +201,43 @@
                         if (e.target === this) {
                             closeFileUpload();
                         }
+                    });
+                    
+                    // Form submit işlemi
+                    document.querySelector('form[action="/send_file"]').addEventListener('submit', function(e) {
+                        e.preventDefault();
+                        
+                        const formData = new FormData(this);
+                        const submitButton = this.querySelector('button[type="submit"]');
+                        const originalText = submitButton.innerHTML;
+                        
+                        // Buton durumunu güncelle
+                        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Gönderiliyor...';
+                        submitButton.disabled = true;
+                        
+                        fetch('/send_file', {
+                            method: 'POST',
+                            body: formData
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                alert('Dosya başarıyla gönderildi! İndirme linki: ' + data.download_link);
+                                closeFileUpload();
+                                this.reset();
+                            } else {
+                                alert('Hata: ' + data.error);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('Bir hata oluştu. Lütfen tekrar deneyin.');
+                        })
+                        .finally(() => {
+                            // Buton durumunu geri al
+                            submitButton.innerHTML = originalText;
+                            submitButton.disabled = false;
+                        });
                     });
                 </script>
 
