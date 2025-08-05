@@ -242,6 +242,8 @@ def cancel(username):
 # ÜYE OLMADAN DOSYA GÖNDER
 @app.route('/send_file', methods=['POST'])
 def send_file_route():
+    print("request.files:", request.files)  # DEBUG
+    print("request.form:", request.form)    # DEBUG
     try:
         # Gerekli alanları al
         sender_email = request.form.get('sender_email')
