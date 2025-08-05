@@ -147,6 +147,7 @@ def login():
             user = User.query.filter_by(username=username).first()
             if user and (check_password_hash(user.password, password) or user.password == password):
                 session['username'] = user.username
+                session['user_id'] = user.id
                 logger.info(f"User {username} logged in successfully")
 
                 if user.role == 'admin':
