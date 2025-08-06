@@ -13,11 +13,14 @@ import tempfile
 import uuid
 import re
 
+load_dotenv()
+
+# Debug: Hangi veritabanına bağlandığını göster
+print("DATABASE_URL:", os.getenv("DATABASE_URL"))
 # Logging setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-load_dotenv()
 
 app = Flask(__name__)
 
@@ -43,12 +46,12 @@ db = SQLAlchemy(app)
 
 # MODELLER
 class File(db.Model):
-    __tablename__ = 'file'
+    __tablename__ = 'files'
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(120), nullable=False)
-    email = db.Column(db.String(120))# Alıcı
-    sender_email = db.Column(db.String(120))  # Gönderen
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # Kullanıcı ID (opsiyonel)
+    email = db.Column(db.String(120))
+    sender_email = db.Column(db.String(120))  
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # Kullanıcı ID 
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -344,6 +347,9 @@ def send_file_route():
 # DOSYA YÜKLE
 @app.route('/upload', methods=['POST'])
 def upload_file():
+    print("request.form:", request.form)
+    print("request.files:", request.files)
+
     try:
         username = session.get('username')
         if not username:
