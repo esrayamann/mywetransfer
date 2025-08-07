@@ -334,11 +334,8 @@ def send_file_route():
         except Exception as e:
             logger.error(f"E-posta gönderilemedi: {str(e)}")
 
-        return jsonify({
-            'success': True,
-            'download_link': download_link,
-            'message': 'Dosya(lar) başarıyla gönderildi!'
-        })
+        return render_template('success.html', download_link=download_link)
+
 
     except Exception as e:
         logger.error(f"Dosya gönderilirken hata: {str(e)}")
