@@ -257,8 +257,9 @@ def send_file_route():
                 sender_email = user.email
 
         # Login olmayanlarda sender_email yoksa anonim e-posta ata
+        sender_email = request.form.get("sender_email")
         if not sender_email:
-            sender_email = "anonim@mywetransfer.local"
+            return jsonify({"error": "Lütfen e-posta adresinizi girin"}), 400
 
         # Receiver_email kontrolü (hala zorunlu)
         if not receiver_email:
