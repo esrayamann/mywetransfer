@@ -430,6 +430,7 @@ def send_download_mail(to_email, filename):
 
 
 def send_download_link_mail(to_email, filename, link):
+    print("DEBUG:", to_email, filename, link)
     sender_email = os.getenv("MAIL_USERNAME")
     password = os.getenv("MAIL_PASSWORD")
     msg = MIMEMultipart()
