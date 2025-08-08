@@ -245,24 +245,25 @@ def cancel(username):
 # ÜYE OLMADAN DOSYA GÖNDER
 @app.route('/send_file', methods=['POST'])
 def send_file_route():
-    print("request.files:", request.files)  # DEBUG
-    print("request.form:", request.form)    # DEBUG
     try:
-        # Gerekli alanları al
         sender_email = request.form.get('sender_email')
         receiver_email = request.form.get('receiver_email')
-        
-        # Eğer kullanıcı giriş yapmışsa, gönderen email olarak kullanıcının emailini kullan
+
+        # Kullanıcı login ise sender_email'i otomatik al
         user = None
         if 'username' in session:
             user = User.query.filter_by(username=session['username']).first()
             if user:
-                sender_email = user.email  # Giriş yapmış kullanıcının emailini kullan
-        
-        # Validasyonlar
-        if not sender_email or not receiver_email:
-            return jsonify({'error': 'Lütfen email adreslerini girin!'}), 400
-        
+                sender_email = user.email
+
+        # Login olmayanlarda sender_email yoksa anonim e-posta ata
+        if not sender_email:
+            sender_email = "anonim@mywetransfer.local"
+
+        # Receiver_email kontrolü (hala zorunlu)
+        if not receiver_email:
+            return jsonify({'error': 'Lütfen alıcı email adresini girin!'}), 400
+
         if 'file' not in request.files:
             return jsonify({'error': 'Lütfen bir dosya veya klasör seçin!'}), 400
         
@@ -272,20 +273,22 @@ def send_file_route():
 
         # E-posta formatı kontrolü
         email_regex = r"^[\w\.-]+@[\w\.-]+\.\w+$"
-        if not re.match(email_regex, sender_email):
-            return jsonify({'error': 'Gönderen e-posta adresi geçersiz!'}), 400
         if not re.match(email_regex, receiver_email):
             return jsonify({'error': 'Alıcı e-posta adresi geçersiz!'}), 400
 
-        # Dosya uzantısı kontrolü (örnek whitelist)
+        # Gönderen email valid değilse (anonim hariç) kontrol yap
+        if sender_email != "anonim@mywetransfer.local" and not re.match(email_regex, sender_email):
+            return jsonify({'error': 'Gönderen e-posta adresi geçersiz!'}), 400
+
+        # Dosya uzantısı kontrolü
         allowed_extensions = {'.pdf', '.jpg', '.jpeg', '.png', '.zip', '.txt', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.csv', '.mp4', '.mp3', '.avi', '.mov', '.rar'}
         for file in files:
             ext = os.path.splitext(file.filename)[1].lower()
             if ext not in allowed_extensions:
                 return jsonify({'error': f'İzin verilmeyen dosya türü: {ext}'}), 400
 
-        # Dosya boyutu kontrolü (maksimum 2GB toplam)
-        max_size = 2 * 1024 * 1024 * 1024  # 2GB
+        # Boyut kontrolü (2GB)
+        max_size = 2 * 1024 * 1024 * 1024
         total_size = 0
         for file in files:
             file.seek(0, os.SEEK_END)
@@ -300,47 +303,44 @@ def send_file_route():
             for file in files:
                 filename = secure_filename(file.filename)
                 file_path = os.path.join(temp_dir, filename)
-                os.makedirs(os.path.dirname(file_path), exist_ok=True)
                 file.save(file_path)
                 file_paths.append((filename, file_path))
 
-            # Zip dosyası için benzersiz isim (UUID)
+            # Zip oluştur
             zip_uuid = uuid.uuid4().hex
             zip_filename = f"upload_{zip_uuid}.zip"
             zip_filepath = os.path.join(app.config['UPLOAD_FOLDER'], zip_filename)
             with zipfile.ZipFile(zip_filepath, 'w', zipfile.ZIP_DEFLATED) as zipf:
                 for filename, file_path in file_paths:
-                    safe_name = os.path.basename(filename)
-                    zipf.write(file_path, arcname=safe_name)
+                    zipf.write(file_path, arcname=os.path.basename(filename))
 
         # Veritabanına kaydet
         new_file = File(
             filename=zip_filename,
             email=receiver_email,
             sender_email=sender_email,
-            user_id=user.id if user else None  # Kullanıcı giriş yapmışsa user_id'yi kaydet
+            user_id=user.id if user else None
         )
         db.session.add(new_file)
         db.session.commit()
 
-        # İndirme linki oluştur
+        # İndirme linki
         download_link = url_for('download_file', filename=zip_filename, _external=True)
-        
+
         # E-posta gönder (opsiyonel)
         try:
             send_download_link_mail(receiver_email, zip_filename, download_link)
-            if sender_email != receiver_email:  # Kendine göndermiyorsa gönderene de bilgi ver
+            if sender_email != "anonim@mywetransfer.local" and sender_email != receiver_email:
                 send_upload_confirmation(sender_email, zip_filename)
         except Exception as e:
             logger.error(f"E-posta gönderilemedi: {str(e)}")
 
         return render_template('success.html', download_link=download_link)
 
-
     except Exception as e:
         logger.error(f"Dosya gönderilirken hata: {str(e)}")
         return jsonify({'error': 'Dosya gönderilirken bir hata oluştu!'}), 500
-    
+  
 # DOSYA YÜKLE
 @app.route('/upload', methods=['POST'])
 def upload_file():
