@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>İşlem Başarısız - WeTransfer Clone</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .gradient-bg { 
+            background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+            min-height: 100vh;
+        }
+        .glass { 
+            backdrop-filter: blur(10px); 
+            background: rgba(255, 255, 255, 0.1); 
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+    </style>
+    <meta http-equiv="refresh" content="">
+</head>
+<body class="gradient-bg">
+    <main class="relative flex items-center justify-center min-h-screen px-4 py-10">
+        <div class="glass rounded-2xl p-8 max-w-md w-full text-center">
+            <div class="w-24 h-24 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                <i class="fas fa-times-circle text-red-300 text-5xl"></i>
+            </div>
+            <h2 class="text-3xl font-bold text-white mb-4">Bir Hata Oluştu</h2>
+            <p class="text-white/80 mb-6">{{ error_message or 'İşlem sırasında beklenmeyen bir hata oluştu.' }}</p>
+            <a href="/" class="inline-block bg-white text-red-700 px-6 py-3 rounded-lg font-semibold hover:bg-white/90 transition-colors">
+                <i class="fas fa-arrow-left mr-2"></i>Ana Sayfaya Dön
+            </a>
+        </div>
+    </main>
+</body>
+</html>

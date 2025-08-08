@@ -207,39 +207,7 @@
                     
                     // Form submit işlemi
                     document.querySelector('form[action="/send_file"]').addEventListener('submit', function(e) {
-                        e.preventDefault();
-                        
-                        const formData = new FormData(this);
-                        const submitButton = this.querySelector('button[type="submit"]');
-                        const originalText = submitButton.innerHTML;
-                        
-                        // Buton durumunu güncelle
-                        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Gönderiliyor...';
-                        submitButton.disabled = true;
-                        
-                        fetch('/send_file', {
-                            method: 'POST',
-                            body: formData
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success) {
-                                alert('Dosya başarıyla gönderildi! İndirme linki: ' + data.download_link);
-                                closeFileUpload();
-                                this.reset();
-                            } else {
-                                alert('Hata: ' + data.error);
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Error:', error);
-                            alert('Bir hata oluştu. Lütfen tekrar deneyin.');
-                        })
-                        .finally(() => {
-                            // Buton durumunu geri al
-                            submitButton.innerHTML = originalText;
-                            submitButton.disabled = false;
-                        });
+                        // Normal form submit - backend success.html/error.html döndürecek
                     });
 
                     function setFileMode(mode) {

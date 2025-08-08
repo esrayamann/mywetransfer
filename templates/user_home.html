@@ -219,40 +219,7 @@
             filePreview.classList.add('hidden');
         });
 
-        // Form gönderimi
-       // Form gönderimi
-quickSendForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const submitBtn = quickSendForm.querySelector('button[type="submit"]');
-    const originalBtnText = submitBtn.innerHTML;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Gönderiliyor...';
-    submitBtn.disabled = true;
-    
-    const formData = new FormData(quickSendForm);
-    
-    try {
-        const response = await fetch('/send_file', {
-            method: 'POST',
-            body: formData
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            // Başarılı olduğunda modal göster
-            showSuccessModal(result.download_link);
-        } else {
-            showErrorModal(result.error || 'Dosya gönderilirken bir hata oluştu!');
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        showErrorModal('Dosya gönderilirken bir hata oluştu!');
-    } finally {
-        submitBtn.innerHTML = originalBtnText;
-        submitBtn.disabled = false;
-    }
-});
+        // Form gönderimi backend'e bırakıldı; özel JS ile engellenmiyor.
 
 // Başarı modalını göster
 function showSuccessModal(downloadLink) {

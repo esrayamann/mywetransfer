@@ -151,6 +151,7 @@ def login():
             if user and (check_password_hash(user.password, password) or user.password == password):
                 session['username'] = user.username
                 session['user_id'] = user.id
+                session['email'] = user.email
                 logger.info(f"User {username} logged in successfully")
 
                 if user.role == 'admin':
@@ -256,37 +257,36 @@ def send_file_route():
             if user:
                 sender_email = user.email
 
-        # Login olmayanlarda sender_email yoksa anonim e-posta ata
-        sender_email = request.form.get("sender_email")
+        # Gönderen e-posta zorunludur (login ise kullanıcının e-postası kullanılır)
         if not sender_email:
-            return jsonify({"error": "Lütfen e-posta adresinizi girin"}), 400
+            return render_template('error.html', error_message="Lütfen e-posta adresinizi girin"), 400
 
         # Receiver_email kontrolü (hala zorunlu)
         if not receiver_email:
-            return jsonify({'error': 'Lütfen alıcı email adresini girin!'}), 400
+            return render_template('error.html', error_message='Lütfen alıcı email adresini girin!'), 400
 
         if 'file' not in request.files:
-            return jsonify({'error': 'Lütfen bir dosya veya klasör seçin!'}), 400
+            return render_template('error.html', error_message='Lütfen bir dosya veya klasör seçin!'), 400
         
         files = request.files.getlist('file')
         if not files or all(f.filename == '' for f in files):
-            return jsonify({'error': 'Geçersiz dosya!'}), 400
+            return render_template('error.html', error_message='Geçersiz dosya!'), 400
 
         # E-posta formatı kontrolü
         email_regex = r"^[\w\.-]+@[\w\.-]+\.\w+$"
         if not re.match(email_regex, receiver_email):
-            return jsonify({'error': 'Alıcı e-posta adresi geçersiz!'}), 400
+            return render_template('error.html', error_message='Alıcı e-posta adresi geçersiz!'), 400
 
         # Gönderen email valid değilse (anonim hariç) kontrol yap
         if sender_email != "anonim@mywetransfer.local" and not re.match(email_regex, sender_email):
-            return jsonify({'error': 'Gönderen e-posta adresi geçersiz!'}), 400
+            return render_template('error.html', error_message='Gönderen e-posta adresi geçersiz!'), 400
 
         # Dosya uzantısı kontrolü
         allowed_extensions = {'.pdf', '.jpg', '.jpeg', '.png', '.zip', '.txt', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.csv', '.mp4', '.mp3', '.avi', '.mov', '.rar'}
         for file in files:
             ext = os.path.splitext(file.filename)[1].lower()
             if ext not in allowed_extensions:
-                return jsonify({'error': f'İzin verilmeyen dosya türü: {ext}'}), 400
+                return render_template('error.html', error_message=f'İzin verilmeyen dosya türü: {ext}'), 400
 
         # Boyut kontrolü (2GB)
         max_size = 2 * 1024 * 1024 * 1024
@@ -296,7 +296,7 @@ def send_file_route():
             total_size += file.tell()
             file.seek(0)
         if total_size > max_size:
-            return jsonify({'error': 'Toplam dosya boyutu çok büyük! Maksimum 2GB'}), 400
+            return render_template('error.html', error_message='Toplam dosya boyutu çok büyük! Maksimum 2GB'), 400
 
         # Geçici klasöre dosyaları kaydet
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -336,11 +336,12 @@ def send_file_route():
         except Exception as e:
             logger.error(f"E-posta gönderilemedi: {str(e)}")
 
+        # Başarıyla sonuçlanınca HTML sayfasını döndür
         return render_template('success.html', download_link=download_link)
 
     except Exception as e:
         logger.error(f"Dosya gönderilirken hata: {str(e)}")
-        return jsonify({'error': 'Dosya gönderilirken bir hata oluştu!'}), 500
+        return render_template('error.html', error_message='Dosya gönderilirken bir hata oluştu!'), 500
   
 # DOSYA YÜKLE
 @app.route('/upload', methods=['POST'])
