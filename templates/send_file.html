@@ -306,46 +306,7 @@
             filePreview.classList.add('hidden');
         });
 
-        // Form gönderimi
-        sendFileForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-
-    if (fileInput.files.length === 0) {
-        alert('Lütfen dosya seçin!');
-        return;
-    }
-
-    const formData = new FormData();
-    formData.append('sender_email', sendFileForm.sender_email.value);
-    formData.append('receiver_email', sendFileForm.receiver_email.value);
-    formData.append('file', fileInput.files[0]);  // Burada tek dosya gönderiyoruz
-
-    const submitBtn = sendFileForm.querySelector('button[type="submit"]');
-    const originalBtnText = submitBtn.innerHTML;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Gönderiliyor...';
-    submitBtn.disabled = true;
-
-    try {
-        const response = await fetch('/send_file', {
-            method: 'POST',
-            body: formData
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-            window.location.href = result.download_link;
-        } else {
-            alert(result.error || 'Dosya yüklenirken hata oluştu!');
-        }
-    } catch (err) {
-        console.error(err);
-        alert('Sunucuya bağlanırken hata oluştu!');
-    }
-
-    submitBtn.innerHTML = originalBtnText;
-    submitBtn.disabled = false;
-});
+        // Form gönderimi backend'e bırakıldı; özel JS ile engellenmiyor.
 
     </script>
 </body>
