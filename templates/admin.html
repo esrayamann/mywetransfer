@@ -87,11 +87,12 @@
                 </nav>
 
                 <!-- Logout Button -->
-                <div class="flex items-center space-x-3">
-                    <a href="{{ url_for('logout') }}" class="bg-red-500 text-white px-6 py-2 rounded-lg font-semibold hover:bg-red-600 transition-colors button-hover">
+                <form method="POST" action="{{ url_for('logout') }}" class="flex items-center space-x-3">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="bg-red-500 text-white px-6 py-2 rounded-lg font-semibold hover:bg-red-600 transition-colors button-hover">
                         <i class="fas fa-sign-out-alt mr-2"></i>Çıkış Yap
-                    </a>
-                </div>
+                    </button>
+                </form>
 
                 <!-- Mobile Menu Button -->
                 <button class="md:hidden text-white">
@@ -145,6 +146,7 @@
                             <td class="px-6 py-4">
                                 {% if user.role == 'user' %}
                                 <form method="POST" action="{{ url_for('change_role', user_id=user.id) }}" class="inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <input type="hidden" name="role" value="admin">
                                     <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors button-hover">
                                         Admin Yap
@@ -152,6 +154,7 @@
                                 </form>
                                 {% elif user.role == 'admin' %}
                                 <form method="POST" action="{{ url_for('change_role', user_id=user.id) }}" class="inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <input type="hidden" name="role" value="user">
                                     <button type="submit" class="bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-700 transition-colors button-hover">
                                         Kullanıcı Yap

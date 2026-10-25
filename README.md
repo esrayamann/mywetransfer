@@ -1,78 +1,100 @@
-# MyWeTransfer - Dosya Paylaşım Uygulaması
+# MyWeTransfer
 
-## 🚀 Kurulum
+> Flask ile geliştirilmiş, kullanıcı hesabı olmadan veya oturum açarak dosya paylaşımı yapılabilen bir WeTransfer esintili demo uygulaması.
 
-### 1. Gereksinimler
-- Python 3.8+
-- PostgreSQL (veya SQLite)
-- Gmail hesabı (email gönderimi için)
+[![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Flask](https://img.shields.io/badge/Flask-3.1-000000?logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-### 2. Environment Variables
-Proje kök dizininde `.env` dosyası oluşturun:
+## Neler sunuyor?
 
-**Yöntem 1: Manuel oluşturma**
+- Bir veya birden fazla dosyayı tek bir ZIP paketi olarak paylaşma
+- Tahmin edilmesi zor, rastgele oluşturulmuş indirme bağlantıları
+- Hesap oluşturma, oturum yönetimi ve kullanıcı dosya yükleme alanı
+- Yönetici rolü ile kullanıcı rolü yönetimi
+- İsteğe bağlı SMTP e-posta bildirimleri
+- SQLite ile hızlı yerel başlangıç; PostgreSQL bağlantı dizesi desteği
+
+## Güvenlik yaklaşımı
+
+Bu proje bir demo/portföy uygulamasıdır; yine de temel güvenlik ilkelerini uygular:
+
+- Gizli yapılandırma `.env` içinde tutulur; Git tarafından izlenmez.
+- İndirme dosyaları kullanıcı adıyla değil, rastgele oluşturulan sunucu adlarıyla saklanır.
+- Parolalar Werkzeug ile hash’lenir; düz metin parola kabul edilmez.
+- Yönetici işlemleri rol doğrulaması, POST işlemleri ise CSRF doğrulaması gerektirir.
+- Üretimde `SECRET_KEY` zorunludur; debug modu varsayılan olarak kapalıdır.
+- Uygulama kart numarası, CVV veya ödeme verisi işlemez. Gerçek abonelik için PCI-DSS uyumlu bir ödeme sağlayıcısı (ör. Stripe/Iyzico) kullanılmalıdır.
+
+## Hızlı başlangıç
+
 ```bash
-# Terminal'de proje dizininde:
-touch .env
-```
+git clone https://github.com/esrayamann/mywetransfer.git
+cd mywetransfer
 
-**Yöntem 2: Örnek dosyadan kopyalama**
-```bash
-cp env.example .env
-```
-
-**Yöntem 3: Terminal ile içerik ekleme**
-```bash
-cat > .env << 'EOF'
-# Database Configuration
-DATABASE_URL=postgresql://username:password@localhost:5432/database_name
-
-# Flask Secret Key
-SECRET_KEY=your-super-secret-key-change-this-in-production
-
-# Email Configuration
-MAIL_USERNAME=your-email@gmail.com
-MAIL_PASSWORD=your-app-password
-
-# Flask Configuration
-FLASK_ENV=production
-FLASK_DEBUG=False
-EOF
-```
-
-**Önemli:** `.env` dosyası git'e yüklenmez (güvenlik nedeniyle). Her sunucuda ayrı ayrı oluşturmanız gerekir.
-
-### 3. Kurulum Adımları
-```bash
-# Virtual environment oluştur
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# venv\Scripts\activate  # Windows
-
-# Dependencies yükle
+python3 -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-# Database oluştur
-python app.py
+cp env.example .env
+# .env içindeki SECRET_KEY değerini güçlü ve benzersiz bir değerle güncelleyin.
+
+flask --app app init-db
+flask --app app run --debug
 ```
 
-### 4. Canlı Sunucu İçin
-- `.env` dosyasını sunucuya yükleyin
-- PostgreSQL bağlantı bilgilerini güncelleyin
-- `FLASK_ENV=production` olarak ayarlayın
+Uygulama varsayılan olarak `http://127.0.0.1:5000` adresinde çalışır.
 
-## 🔧 Sorun Giderme
+## Testler
 
-### Internal Server Error
-1. `/health` endpoint'ini kontrol edin
-2. Database bağlantısını test edin
-3. Log dosyalarını kontrol edin
+```bash
+python -m unittest discover -s tests -v
+```
 
-### Database Bağlantı Sorunu
-- PostgreSQL servisinin çalıştığından emin olun
-- DATABASE_URL formatını kontrol edin
-- Firewall ayarlarını kontrol edin
+Test paketi; CSRF doğrulamasını, yetkisiz yönetici paneli erişimini ve rastgele adlandırılmış aktarım dosyasının indirme akışını kontrol eder.
 
-## 📍 Canlı Sunucu Adresleri
-- Ana sunucu: http://93.115.79.35/
-- Ngrok tünel: https://faccc11d33b3.ngrok-free.app/
+## Yapılandırma
+
+`.env` dosyanızı yalnızca yerelde veya güvenli bir dağıtım gizli-değer yöneticisinde saklayın.
+
+| Değişken | Amaç | Varsayılan |
+| --- | --- | --- |
+| `DATABASE_URL` | SQLite veya PostgreSQL bağlantısı | `sqlite:///app.db` |
+| `SECRET_KEY` | Oturumları imzalamak için gizli anahtar | Üretimde zorunlu |
+| `MAIL_USERNAME` / `MAIL_PASSWORD` | SMTP bildirimleri | Boşsa e-posta gönderilmez |
+| `MAX_UPLOAD_MB` | Aktarım başına toplam boyut limiti | `100` |
+| `MAX_FILES_PER_TRANSFER` | Aktarım başına dosya adedi limiti | `25` |
+| `FLASK_ENV` | Ortam modu | geliştirme |
+| `FLASK_DEBUG` | Flask debug modu | `false` |
+
+Güvenli bir anahtar üretmek için:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+## Üretime alma
+
+Önce yapılandırmayı güvenli biçimde sağlayın, ardından tabloları bir kez oluşturun:
+
+```bash
+flask --app app init-db
+gunicorn --bind 0.0.0.0:8000 app:app
+```
+
+Üretimde HTTPS’i ters proxy üzerinden zorunlu kılın, `FLASK_ENV=production` kullanın ve `SECRET_KEY` ile veritabanı kimlik bilgilerini asla depoya eklemeyin.
+
+## Sağlık kontrolü
+
+`GET /health`, veritabanı erişimini kontrol eder ve yalnızca genel durum bilgisini döndürür. Hata ayrıntıları veya ortam değişkenleri açığa çıkarılmaz.
+
+## Yol haritası
+
+- [ ] Süreli indirme bağlantıları ve otomatik dosya temizleme
+- [ ] Gerçek nesne depolama (S3 uyumlu servis) desteği
+- [ ] Veritabanı migration’ları ve test kapsamı
+- [ ] PCI-DSS uyumlu ödeme sağlayıcısı ile premium akışı
+
+## Lisans
+
+Bu proje [MIT License](LICENSE) ile lisanslanmıştır.

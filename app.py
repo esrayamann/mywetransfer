@@ -1,9 +1,10 @@
-from flask import Flask, request, redirect, url_for, send_from_directory, session, render_template, flash, jsonify
+from flask import Flask, abort, request, redirect, url_for, send_from_directory, session, render_template, flash
 from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from werkzeug.utils import secure_filename
+from werkzeug.exceptions import RequestEntityTooLarge
 import os
 import smtplib
 import logging
@@ -12,35 +13,64 @@ import zipfile
 import tempfile
 import uuid
 import re
+import hmac
+import secrets
+import click
+from datetime import timedelta
+from functools import wraps
+from pathlib import Path
+from sqlalchemy import or_, text
 
 load_dotenv()
 
-# Debug: Hangi veritabanına bağlandığını göster
-print("DATABASE_URL:", os.getenv("DATABASE_URL"))
-# Logging setup
-logging.basicConfig(level=logging.INFO)
+# Never log database URLs, mail credentials, or uploaded file contents.
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
-
 
 app = Flask(__name__)
 
-# Database configuration with fallback
-database_url = os.getenv('DATABASE_URL')
-if not database_url:
-    logger.error("DATABASE_URL not found in environment variables!")
-    database_url = "sqlite:///app.db"  # Fallback to SQLite for development
+BASE_DIR = Path(__file__).resolve().parent
+DEFAULT_MAX_UPLOAD_MB = 100
+ALLOWED_EXTENSIONS = {
+    '.avi', '.csv', '.doc', '.docx', '.jpg', '.jpeg', '.mov', '.mp3', '.mp4',
+    '.pdf', '.png', '.ppt', '.pptx', '.rar', '.txt', '.xls', '.xlsx', '.zip',
+}
+EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+USERNAME_PATTERN = re.compile(r"^[a-zA-Z0-9_.-]{3,50}$")
 
-app.config['SQLALCHEMY_DATABASE_URI'] = database_url
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Secret key configuration with fallback
+def positive_int_from_env(name, default):
+    try:
+        return max(1, int(os.getenv(name, default)))
+    except (TypeError, ValueError):
+        logger.warning("Invalid %s value; using the default.", name)
+        return default
+
+
+is_production = os.getenv('FLASK_ENV', '').lower() == 'production'
 secret_key = os.getenv('SECRET_KEY')
 if not secret_key:
-    logger.warning("SECRET_KEY not found, using default key!")
-    secret_key = "dev-secret-key-change-in-production"
+    if is_production:
+        raise RuntimeError('SECRET_KEY must be set when FLASK_ENV=production.')
+    secret_key = secrets.token_urlsafe(32)
+    logger.warning('SECRET_KEY is not set; using an ephemeral development key.')
 
-app.config['SECRET_KEY'] = secret_key
-app.config['UPLOAD_FOLDER'] = 'uploads'
+upload_directory = Path(os.getenv('UPLOAD_FOLDER', BASE_DIR / 'uploads')).resolve()
+upload_directory.mkdir(parents=True, exist_ok=True)
+
+app = Flask(__name__)
+app.config.from_mapping(
+    SECRET_KEY=secret_key,
+    SQLALCHEMY_DATABASE_URI=os.getenv('DATABASE_URL', 'sqlite:///app.db'),
+    SQLALCHEMY_TRACK_MODIFICATIONS=False,
+    UPLOAD_FOLDER=str(upload_directory),
+    MAX_CONTENT_LENGTH=positive_int_from_env('MAX_UPLOAD_MB', DEFAULT_MAX_UPLOAD_MB) * 1024 * 1024,
+    MAX_FILES_PER_TRANSFER=positive_int_from_env('MAX_FILES_PER_TRANSFER', 25),
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=is_production,
+)
 
 db = SQLAlchemy(app)
 
@@ -63,11 +93,79 @@ class User(db.Model):
     storage_quota = db.Column(db.Float, default=5120)
     role = db.Column(db.String(20), default='user')
 
-if not os.path.exists('uploads'):
-    os.makedirs('uploads')
+def current_user():
+    user_id = session.get('user_id')
+    return db.session.get(User, user_id) if user_id else None
 
-if app.config.get('ENV') == 'development':
-    app.jinja_env.cache = {}
+
+def login_required(view):
+    @wraps(view)
+    def wrapped_view(*args, **kwargs):
+        if not current_user():
+            session.clear()
+            flash('Bu sayfayı görüntülemek için giriş yapın.', 'error')
+            return redirect(url_for('login'))
+        return view(*args, **kwargs)
+    return wrapped_view
+
+
+def admin_required(view):
+    @wraps(view)
+    @login_required
+    def wrapped_view(*args, **kwargs):
+        if current_user().role != 'admin':
+            abort(403)
+        return view(*args, **kwargs)
+    return wrapped_view
+
+
+def csrf_token():
+    token = session.get('_csrf_token')
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session['_csrf_token'] = token
+    return token
+
+
+app.jinja_env.globals['csrf_token'] = csrf_token
+
+
+@app.before_request
+def protect_against_csrf():
+    if request.method == 'POST':
+        session_token = session.get('_csrf_token')
+        submitted_token = request.form.get('csrf_token', '')
+        if not session_token or not hmac.compare_digest(session_token, submitted_token):
+            abort(400, description='Geçersiz veya süresi dolmuş form isteği.')
+
+
+@app.errorhandler(RequestEntityTooLarge)
+def handle_upload_too_large(_error):
+    limit_mb = app.config['MAX_CONTENT_LENGTH'] // (1024 * 1024)
+    return render_template('error.html', error_message=f'Dosya boyutu sınırı aşıldı. Maksimum {limit_mb} MB yükleyebilirsiniz.'), 413
+
+
+def is_valid_email(value):
+    return bool(value and EMAIL_PATTERN.fullmatch(value))
+
+
+def allowed_file(filename):
+    return Path(secure_filename(filename)).suffix.lower() in ALLOWED_EXTENSIONS
+
+
+def uploaded_file_size(file_storage):
+    file_storage.stream.seek(0, os.SEEK_END)
+    size = file_storage.stream.tell()
+    file_storage.stream.seek(0)
+    return size
+
+
+def stored_filename(filename):
+    return f"{uuid.uuid4().hex}{Path(secure_filename(filename)).suffix.lower()}"
+
+
+def mail_is_configured():
+    return bool(os.getenv('MAIL_USERNAME') and os.getenv('MAIL_PASSWORD'))
 
 # ANA SAYFA
 @app.route('/')
@@ -78,420 +176,261 @@ def home():
 @app.route('/health')
 def health_check():
     try:
-        # Test database connection
-        from sqlalchemy import text
         db.session.execute(text('SELECT 1'))
-        db_status = "OK"
-    except Exception as e:
-        logger.error(f"Database connection error: {str(e)}")
-        db_status = f"ERROR: {str(e)}"
-    
-    return {
-        'status': 'OK',
-        'database': db_status,
-        'env_vars': {
-            'DATABASE_URL_set': bool(os.getenv('DATABASE_URL')),
-            'SECRET_KEY_set': bool(os.getenv('SECRET_KEY')),
-            'MAIL_USERNAME_set': bool(os.getenv('MAIL_USERNAME')),
-            'MAIL_PASSWORD_set': bool(os.getenv('MAIL_PASSWORD'))
-        }
-    }
+    except Exception:
+        logger.exception('Health check database connection failed.')
+        return {'status': 'degraded', 'database': 'unavailable'}, 503
+    return {'status': 'ok', 'database': 'ok'}
 
 
 
-# KAYIT OL
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    try:
-        if request.method == 'POST':
-            username = request.form['username']
-            email = request.form['email']
-            password = request.form['password']
-
-            # Check if user already exists
-            existing_user = User.query.filter_by(username=username).first()
-            if existing_user:
-                flash("Bu kullanıcı adı zaten kullanılıyor.", "error")
-                return render_template('register.html', error="Bu kullanıcı adı zaten kullanılıyor.")
-
-            existing_email = User.query.filter_by(email=email).first()
-            if existing_email:
-                flash("Bu email adresi zaten kullanılıyor.", "error")
-                return render_template('register.html', error="Bu email adresi zaten kullanılıyor.")
-
-            hashed_password = generate_password_hash(password)
-            new_user = User(username=username, email=email, password=hashed_password)
-            db.session.add(new_user)
-            db.session.commit()
-
-            logger.info(f"New user registered: {username}")
-            flash("Kayıt başarılı! Giriş yapabilirsiniz.", "success")
-            return redirect(url_for('login'))
-        
+    if request.method == 'GET':
         return render_template('register.html')
-    
-    except Exception as e:
-        logger.error(f"Registration error: {str(e)}")
-        db.session.rollback()
-        flash("Kayıt olurken bir hata oluştu. Lütfen tekrar deneyin.", "error")
-        return render_template('register.html', error="Sistem hatası. Lütfen tekrar deneyin.")
 
+    username = request.form.get('username', '').strip()
+    email = request.form.get('email', '').strip().lower()
+    password = request.form.get('password', '')
+    if not USERNAME_PATTERN.fullmatch(username):
+        flash('Kullanıcı adı 3-50 karakter olmalı; yalnızca harf, rakam, nokta, tire ve alt çizgi içerebilir.', 'error')
+        return render_template('register.html'), 400
+    if not is_valid_email(email):
+        flash('Geçerli bir e-posta adresi girin.', 'error')
+        return render_template('register.html'), 400
+    if len(password) < 8:
+        flash('Şifre en az 8 karakter olmalıdır.', 'error')
+        return render_template('register.html'), 400
+    if User.query.filter(or_(User.username == username, User.email == email)).first():
+        flash('Bu kullanıcı adı veya e-posta adresi zaten kullanılıyor.', 'error')
+        return render_template('register.html'), 409
 
-# GİRİŞ
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    try:
-        if request.method == 'POST':
-            username = request.form['username']
-            password = request.form['password']
-            
-            logger.info(f"Login attempt for user: {username}")
-            
-            user = User.query.filter_by(username=username).first()
-            if user and (check_password_hash(user.password, password) or user.password == password):
-                session['username'] = user.username
-                session['user_id'] = user.id
-                session['email'] = user.email
-                logger.info(f"User {username} logged in successfully")
-
-                if user.role == 'admin':
-                    return redirect(url_for('admin_panel'))
-                else:
-                    return redirect(url_for('user_home'))
-            else:
-                logger.warning(f"Failed login attempt for user: {username}")
-                flash("Geçersiz kullanıcı adı veya şifre.", "error")
-                return render_template('login.html', error="Geçersiz kullanıcı adı veya şifre.")
-        
-        return render_template('login.html')
-    
-    except Exception as e:
-        logger.error(f"Login error: {str(e)}")
-        flash("Giriş yapılırken bir hata oluştu. Lütfen tekrar deneyin.", "error")
-        return render_template('login.html', error="Sistem hatası. Lütfen tekrar deneyin.")
-
-# ÇIKIŞ
-@app.route('/logout')
-def logout():
-    session.clear()
+    db.session.add(User(username=username, email=email, password=generate_password_hash(password)))
+    db.session.commit()
+    logger.info('A new account was registered.')
+    flash('Kayıt başarılı. Giriş yapabilirsiniz.', 'success')
     return redirect(url_for('login'))
 
-# KULLANICI ANA SAYFA
-@app.route('/user_home', methods=['GET', 'POST'])
-def user_home():
-    username = session.get('username')
-    if not username:
-        return redirect(url_for('login'))
 
-    user = User.query.filter_by(username=username).first()
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'GET':
+        return render_template('login.html')
+
+    identifier = request.form.get('username', '').strip()
+    password = request.form.get('password', '')
+    user = User.query.filter(or_(User.username == identifier, User.email == identifier.lower())).first()
+    if not user or not check_password_hash(user.password, password):
+        logger.warning('Failed login attempt.')
+        flash('Geçersiz kullanıcı adı veya şifre.', 'error')
+        return render_template('login.html'), 401
+
+    session.clear()
+    session['user_id'] = user.id
+    session.permanent = True
+    logger.info('User logged in.')
+    return redirect(url_for('admin_panel' if user.role == 'admin' else 'user_home'))
+
+@app.route('/logout', methods=['POST'])
+@login_required
+def logout():
+    session.clear()
+    flash('Güvenle çıkış yaptınız.', 'success')
+    return redirect(url_for('login'))
+
+@app.route('/user_home')
+@login_required
+def user_home():
+    user = current_user()
     premium_status = 'Premium' if user.is_premium else 'Standart'
     return render_template('user_home.html',
                            username=user.username,
+                           user_email=user.email,
                            premium_status=premium_status,
                            storage_quota=round(user.storage_quota, 2),
-                           is_premium=user.is_premium)
+                           is_premium=user.is_premium,
+                           max_upload_mb=app.config['MAX_CONTENT_LENGTH'] // (1024 * 1024))
 
-# ADMIN PANEL
 @app.route('/admin')
+@admin_required
 def admin_panel():
-    users = User.query.all()
+    users = User.query.order_by(User.id).all()
     return render_template('admin.html', users=users)
 
-# Adminde ROL DEĞİŞTİR
 @app.route('/change_role/<int:user_id>', methods=['POST'])
+@admin_required
 def change_role(user_id):
-    user = User.query.get(user_id)
-    if not user:
-        return "Kullanıcı bulunamadı."
-
-    new_role = request.form['role']
-    if new_role in ['user', 'admin']:
-        user.role = new_role
-        db.session.commit()
+    user = db.session.get(User, user_id)
+    new_role = request.form.get('role')
+    if not user or new_role not in {'user', 'admin'}:
+        abort(400)
+    if user.id == current_user().id and new_role != 'admin':
+        flash('Kendi yönetici yetkinizi kaldıramazsınız.', 'error')
         return redirect(url_for('admin_panel'))
-    else:
-        return "Geçersiz rol!"
-
-
-# PREMIUM SATIN AL
-@app.route('/upgrade/<username>', methods=['GET', 'POST'])
-def upgrade(username):
-    user = User.query.filter_by(username=username).first()
-    if not user:
-        return "Kullanıcı bulunamadı."
-    if request.method == 'POST':
-        cardholder = request.form['cardholder']
-        cardnumber = request.form['cardnumber']
-        expiry = request.form['expiry']
-        cvv = request.form['cvv']
-
-        user.is_premium = True
-        user.storage_quota = 204800
-        db.session.commit()
-        return redirect(url_for('login'))
-    return render_template('upgrade.html', username=user.username)
-
-
-# PREMIUM İPTAL
-@app.route('/cancel/<username>', methods=['POST'])
-def cancel(username):
-    user = User.query.filter_by(username=username).first()
-    if not user:
-        return "Kullanıcı bulunamadı."
-    user.is_premium = False
-    user.storage_quota = 5120
+    user.role = new_role
     db.session.commit()
-    return redirect(url_for('login'))
+    flash('Kullanıcı rolü güncellendi.', 'success')
+    return redirect(url_for('admin_panel'))
+
+
+@app.route('/upgrade')
+@login_required
+def upgrade():
+    return render_template('upgrade.html', username=current_user().username)
 
 # ÜYE OLMADAN DOSYA GÖNDER
 @app.route('/send_file', methods=['POST'])
 def send_file_route():
+    sender_email = request.form.get('sender_email', '').strip().lower()
+    receiver_email = request.form.get('receiver_email', '').strip().lower()
+    user = current_user()
+    if user:
+        sender_email = user.email
+    if not is_valid_email(sender_email) or not is_valid_email(receiver_email):
+        return render_template('error.html', error_message='Geçerli gönderen ve alıcı e-posta adresleri girin.'), 400
+
+    files = [file for file in request.files.getlist('file') if file and file.filename]
+    if not files:
+        return render_template('error.html', error_message='En az bir dosya seçin.'), 400
+    if len(files) > app.config['MAX_FILES_PER_TRANSFER']:
+        return render_template('error.html', error_message='Bu aktarımda çok fazla dosya var.'), 400
+    if any(not allowed_file(file.filename) for file in files):
+        return render_template('error.html', error_message='İzin verilmeyen bir dosya türü seçildi.'), 400
+    if sum(uploaded_file_size(file) for file in files) > app.config['MAX_CONTENT_LENGTH']:
+        return render_template('error.html', error_message='Toplam dosya boyutu sınırı aşıyor.'), 413
+
+    archive_filename = f'transfer-{uuid.uuid4().hex}.zip'
+    archive_path = upload_directory / archive_filename
     try:
-        sender_email = request.form.get('sender_email')
-        receiver_email = request.form.get('receiver_email')
-
-        # Kullanıcı login ise sender_email'i otomatik al
-        user = None
-        if 'username' in session:
-            user = User.query.filter_by(username=session['username']).first()
-            if user:
-                sender_email = user.email
-
-        # Gönderen e-posta zorunludur (login ise kullanıcının e-postası kullanılır)
-        if not sender_email:
-            return render_template('error.html', error_message="Lütfen e-posta adresinizi girin"), 400
-
-        # Receiver_email kontrolü (hala zorunlu)
-        if not receiver_email:
-            return render_template('error.html', error_message='Lütfen alıcı email adresini girin!'), 400
-
-        if 'file' not in request.files:
-            return render_template('error.html', error_message='Lütfen bir dosya veya klasör seçin!'), 400
-        
-        files = request.files.getlist('file')
-        if not files or all(f.filename == '' for f in files):
-            return render_template('error.html', error_message='Geçersiz dosya!'), 400
-
-        # E-posta formatı kontrolü
-        email_regex = r"^[\w\.-]+@[\w\.-]+\.\w+$"
-        if not re.match(email_regex, receiver_email):
-            return render_template('error.html', error_message='Alıcı e-posta adresi geçersiz!'), 400
-
-        # Gönderen email valid değilse (anonim hariç) kontrol yap
-        if sender_email != "anonim@mywetransfer.local" and not re.match(email_regex, sender_email):
-            return render_template('error.html', error_message='Gönderen e-posta adresi geçersiz!'), 400
-
-        # Dosya uzantısı kontrolü
-        allowed_extensions = {'.pdf', '.jpg', '.jpeg', '.png', '.zip', '.txt', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.csv', '.mp4', '.mp3', '.avi', '.mov', '.rar'}
-        for file in files:
-            ext = os.path.splitext(file.filename)[1].lower()
-            if ext not in allowed_extensions:
-                return render_template('error.html', error_message=f'İzin verilmeyen dosya türü: {ext}'), 400
-
-        # Boyut kontrolü (2GB)
-        max_size = 2 * 1024 * 1024 * 1024
-        total_size = 0
-        for file in files:
-            file.seek(0, os.SEEK_END)
-            total_size += file.tell()
-            file.seek(0)
-        if total_size > max_size:
-            return render_template('error.html', error_message='Toplam dosya boyutu çok büyük! Maksimum 2GB'), 400
-
-        # Geçici klasöre dosyaları kaydet
         with tempfile.TemporaryDirectory() as temp_dir:
-            file_paths = []
-            for file in files:
-                filename = secure_filename(file.filename)
-                file_path = os.path.join(temp_dir, filename)
-                file.save(file_path)
-                file_paths.append((filename, file_path))
-
-            # Zip oluştur
-            zip_uuid = uuid.uuid4().hex
-            zip_filename = f"upload_{zip_uuid}.zip"
-            zip_filepath = os.path.join(app.config['UPLOAD_FOLDER'], zip_filename)
-            with zipfile.ZipFile(zip_filepath, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                for filename, file_path in file_paths:
-                    zipf.write(file_path, arcname=os.path.basename(filename))
-
-        # Veritabanına kaydet
-        new_file = File(
-            filename=zip_filename,
-            email=receiver_email,
-            sender_email=sender_email,
-            user_id=user.id if user else None
-        )
-        db.session.add(new_file)
+            with zipfile.ZipFile(archive_path, 'w', zipfile.ZIP_DEFLATED) as archive:
+                for index, file in enumerate(files):
+                    safe_name = secure_filename(file.filename)
+                    if not safe_name:
+                        abort(400, description='Geçersiz dosya adı.')
+                    temporary_path = Path(temp_dir) / f'{index}-{safe_name}'
+                    file.save(temporary_path)
+                    archive.write(temporary_path, arcname=safe_name)
+        db.session.add(File(filename=archive_filename, email=receiver_email, sender_email=sender_email, user_id=user.id if user else None))
         db.session.commit()
+    except Exception:
+        db.session.rollback()
+        archive_path.unlink(missing_ok=True)
+        logger.exception('File transfer could not be created.')
+        return render_template('error.html', error_message='Dosya gönderilirken bir hata oluştu.'), 500
 
-        # İndirme linki
-        download_link = url_for('download_file', filename=zip_filename, _external=True)
-
-        # E-posta gönder (opsiyonel)
+    download_link = url_for('download_file', filename=archive_filename, _external=True)
+    if mail_is_configured():
         try:
-            send_download_link_mail(receiver_email, zip_filename, download_link)
-            if sender_email != "anonim@mywetransfer.local" and sender_email != receiver_email:
-                send_upload_confirmation(sender_email, zip_filename)
-        except Exception as e:
-            logger.error(f"E-posta gönderilemedi: {str(e)}")
-
-        # Başarıyla sonuçlanınca HTML sayfasını döndür
-        return render_template('success.html', download_link=download_link)
-
-    except Exception as e:
-        logger.error(f"Dosya gönderilirken hata: {str(e)}")
-        return render_template('error.html', error_message='Dosya gönderilirken bir hata oluştu!'), 500
+            send_download_link_mail(receiver_email, archive_filename, download_link)
+            if sender_email != receiver_email:
+                send_upload_confirmation(sender_email, archive_filename)
+        except Exception:
+            logger.exception('Transfer email could not be sent.')
+    return render_template('success.html', download_link=download_link)
   
 # DOSYA YÜKLE
 @app.route('/upload', methods=['POST'])
+@login_required
 def upload_file():
-    print("request.form:", request.form)
-    print("request.files:", request.files)
+    user = current_user()
+    file = request.files.get('file')
+    if not file or not file.filename:
+        flash('Lütfen bir dosya seçin.', 'error')
+        return redirect(url_for('user_home'))
+    if not allowed_file(file.filename):
+        flash('Bu dosya türüne izin verilmiyor.', 'error')
+        return redirect(url_for('user_home'))
 
+    file_size_mb = uploaded_file_size(file) / (1024 * 1024)
+    if file_size_mb > app.config['MAX_CONTENT_LENGTH'] / (1024 * 1024):
+        flash('Dosya boyutu sınırı aşıyor.', 'error')
+        return redirect(url_for('user_home'))
+    if not user.is_premium and user.storage_quota < file_size_mb:
+        flash('Yetersiz alan. Premium planlar şu anda kullanıma kapalıdır.', 'error')
+        return redirect(url_for('user_home'))
+
+    filename = stored_filename(file.filename)
+    filepath = upload_directory / filename
     try:
-        username = session.get('username')
-        if not username:
-            return redirect(url_for('login'))
-        
-        user = User.query.filter_by(username=username).first()
-        if not user:
-            flash("Kullanıcı bulunamadı!", "error")
-            return redirect(url_for('user_home'))
-
-        file = request.files['file']
-        if not file or file.filename == '':
-            flash("Lütfen bir dosya seçin!", "error")
-            return redirect(url_for('user_home'))
-
-        filename = file.filename
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
-
-        file_size_mb = os.path.getsize(filepath) / (1024 * 1024)
-        
-        # Premium kullanıcılar için limit kontrolü yok
-        if not user.is_premium and user.storage_quota < file_size_mb:
-            os.remove(filepath)
-            flash("Yetersiz alan! Premium'a yükseltin.", "error")
-            return redirect(url_for('user_home'))
-
-        # Premium olmayan kullanıcılar için alan düşür
         if not user.is_premium:
             user.storage_quota -= file_size_mb
-        
-        db.session.add(File(filename=filename, email=user.email))
+        db.session.add(File(filename=filename, email=user.email, sender_email=user.email, user_id=user.id))
         db.session.commit()
-        
-        flash(f"{filename} başarıyla yüklendi!", "success")
-        logger.info(f"User {username} uploaded file: {filename}")
-        
+    except Exception:
+        db.session.rollback()
+        filepath.unlink(missing_ok=True)
+        logger.exception('Authenticated upload failed.')
+        flash('Dosya yüklenirken bir hata oluştu.', 'error')
         return redirect(url_for('user_home'))
-        
-    except Exception as e:
-        logger.error(f"Upload error: {str(e)}")
-        flash("Dosya yüklenirken bir hata oluştu!", "error")
-        return redirect(url_for('user_home'))
+
+    flash('Dosyanız güvenle yüklendi.', 'success')
+    return redirect(url_for('user_home'))
 
 
 # DOSYA İNDİR
 @app.route('/download/<filename>')
 def download_file(filename):
-    file_entry = File.query.filter_by(filename=filename).first()
-    if file_entry:
-        send_download_notification(file_entry)
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    file_entry = File.query.filter_by(filename=filename).first_or_404()
+    if not (upload_directory / file_entry.filename).is_file():
+        abort(404)
+    send_download_notification(file_entry)
+    return send_from_directory(app.config['UPLOAD_FOLDER'], file_entry.filename, as_attachment=True)
 
 
 # FORM
 @app.route('/form')
+@login_required
 def upload_form():
-    return '''
-    <h2>Dosya Yükle</h2>
-    <form method="post" action="/upload" enctype="multipart/form-data">
-      <label>Dosya seç:</label><br>
-      <input type="file" name="file"><br><br>
-      <button type="submit">Yükle</button>
-    </form>
-    '''
+    return render_template('upload_form.html')
 
 
 # SMTP FONKSİYONLARI
-def send_download_mail(to_email, filename):
-    sender_email = os.getenv("MAIL_USERNAME")
-    password = os.getenv("MAIL_PASSWORD")
-    msg = MIMEMultipart()
-    msg['From'] = sender_email
-    msg['To'] = to_email
-    msg['Subject'] = 'Dosyanız indirildi'
-    msg.attach(MIMEText(f'{filename} dosyanız indirildi.', 'plain'))
+def send_email(to_email, subject, body, subtype='plain'):
+    if not mail_is_configured():
+        raise RuntimeError('Email delivery is not configured.')
+    message = MIMEMultipart()
+    message['From'] = os.getenv('MAIL_USERNAME')
+    message['To'] = to_email
+    message['Subject'] = subject
+    message.attach(MIMEText(body, subtype))
     with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-        server.login(sender_email, password)
-        server.send_message(msg)
+        server.login(os.getenv('MAIL_USERNAME'), os.getenv('MAIL_PASSWORD'))
+        server.send_message(message)
 
 
 def send_download_link_mail(to_email, filename, link):
-    print("DEBUG:", to_email, filename, link)
-    sender_email = os.getenv("MAIL_USERNAME")
-    password = os.getenv("MAIL_PASSWORD")
-    msg = MIMEMultipart()
-    msg['From'] = sender_email
-    msg['To'] = to_email
-    msg['Subject'] = 'Yeni dosya yüklendi!'
-    msg.attach(MIMEText(f'{filename} dosyası yüklendi. İndirme linki: {link}', 'plain'))
-    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-        server.login(sender_email, password)
-        server.send_message(msg)
+    send_email(to_email, 'Yeni dosya yüklendi!', f'{filename} dosyası yüklendi. İndirme linki: {link}')
+
 
 def send_download_notification(file_entry):
-    sender_email = file_entry.sender_email
-    receiver_email = file_entry.email
-    filename = file_entry.filename
-
-    sender_address = os.getenv("MAIL_USERNAME")
-    password = os.getenv("MAIL_PASSWORD")
-
-    # Gönderene bilgi
-    msg_sender = MIMEMultipart()
-    msg_sender['From'] = sender_address
-    msg_sender['To'] = sender_email
-    msg_sender['Subject'] = 'Gönderdiğiniz Dosya İndirildi!'
-    msg_sender.attach(MIMEText(
-        f"""
-        <p>Merhaba,</p>
-        <p>Gönderdiğiniz <strong>{filename}</strong> isimli dosya <strong>{receiver_email}</strong> tarafından indirildi.</p>
-        <p>Teşekkürler,<br>WeTransfer Clone</p>
-        """, 'html'))
-
+    if not file_entry.sender_email or not mail_is_configured():
+        return
+    body = (
+        '<p>Merhaba,</p>'
+        f'<p>Gönderdiğiniz <strong>{file_entry.filename}</strong> isimli dosya '
+        f'<strong>{file_entry.email}</strong> tarafından indirildi.</p>'
+    )
     try:
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-            server.login(sender_address, password)
-            server.send_message(msg_sender)
-    except Exception as e:
-        logger.error(f"İndirme bildirimi gönderilemedi: {str(e)}")
+        send_email(file_entry.sender_email, 'Gönderdiğiniz Dosya İndirildi!', body, 'html')
+    except Exception:
+        logger.exception('Download notification could not be sent.')
+
 
 def send_upload_confirmation(sender_email, filename):
-    sender_address = os.getenv("MAIL_USERNAME")
-    password = os.getenv("MAIL_PASSWORD")
+    body = f'<p>Merhaba,</p><p><strong>{filename}</strong> dosyanız başarıyla gönderilmiştir.</p>'
+    send_email(sender_email, 'Dosya Gönderim Onayı', body, 'html')
 
-    msg = MIMEMultipart()
-    msg['From'] = sender_address
-    msg['To'] = sender_email
-    msg['Subject'] = 'Dosya Gönderim Onayı'
-    
-    body = f"""
-    <p>Merhaba,</p>
-    <p><strong>{filename}</strong> dosyanız başarıyla gönderilmiştir.</p>
-    <p>Teşekkür ederiz.</p>
-    """
-    
-    msg.attach(MIMEText(body, 'html'))
-    
-    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-        server.login(sender_address, password)
-        server.send_message(msg)
-        
+
+@app.cli.command('init-db')
+def init_db():
+    """Create database tables for a local or first-time deployment."""
+    db.create_all()
+    click.echo('Database tables are ready.')
+
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(debug=True)
+    app.run(debug=os.getenv('FLASK_DEBUG', 'false').lower() == 'true')

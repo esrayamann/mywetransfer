@@ -86,7 +86,7 @@
                 <!-- Navigation -->
                 <nav class="hidden md:flex items-center space-x-6">
                     <a href="/" class="text-white/80 hover:text-white transition-colors">Ana Sayfa</a>
-                    <a href="/dashboard" class="text-white/80 hover:text-white transition-colors">Kontrol Paneli</a>
+                    <a href="{{ url_for('user_home') }}" class="text-white/80 hover:text-white transition-colors">Kontrol Paneli</a>
                 </nav>
 
                 <!-- User Menu -->
@@ -106,8 +106,8 @@
                 <div class="w-20 h-20 bg-yellow-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
                     <i class="fas fa-crown text-yellow-300 text-3xl"></i>
                 </div>
-                <h2 class="text-3xl font-bold text-white mb-2">Premium Üyelik Satın Al</h2>
-                <p class="text-white/70">Sınırsız dosya paylaşım deneyiminin keyfini çıkarın</p>
+                <h2 class="text-3xl font-bold text-white mb-2">Premium Planlar</h2>
+                <p class="text-white/70">Ödeme entegrasyonu hazırlanıyor</p>
             </div>
 
             <!-- Pricing Cards -->
@@ -134,99 +134,18 @@
                 </div>
             </div>
 
-            <!-- Payment Form -->
-            <form method="POST" class="space-y-6">
-                <div>
-                    <label for="cardholder" class="block text-white/80 mb-2">Kart Sahibi</label>
-                    <input 
-                        type="text" 
-                        id="cardholder" 
-                        name="cardholder" 
-                        placeholder="Ad Soyad" 
-                        required
-                        class="w-full px-5 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 input-focus focus:bg-white/20 transition-colors"
-                    >
-                </div>
-
-                <div>
-                    <label for="cardnumber" class="block text-white/80 mb-2">Kart Numarası</label>
-                    <input 
-                        type="text" 
-                        id="cardnumber" 
-                        name="cardnumber" 
-                        placeholder="0000 0000 0000 0000" 
-                        required
-                        maxlength="19"
-                        class="w-full px-5 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 input-focus focus:bg-white/20 transition-colors card-input"
-                        oninput="formatCardNumber(this)"
-                    >
-                </div>
-
-                <div class="grid md:grid-cols-2 gap-6">
-                    <div>
-                        <label for="expiry" class="block text-white/80 mb-2">Son Kullanma Tarihi</label>
-                        <input 
-                            type="month" 
-                            id="expiry" 
-                            name="expiry" 
-                            required
-                            class="w-full px-5 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 input-focus focus:bg-white/20 transition-colors"
-                        >
-                    </div>
-                    <div>
-                        <label for="cvv" class="block text-white/80 mb-2">CVV</label>
-                        <input 
-                            type="number" 
-                            id="cvv" 
-                            name="cvv" 
-                            placeholder="123" 
-                            required
-                            class="w-full px-5 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 input-focus focus:bg-white/20 transition-colors"
-                        >
-                    </div>
-                </div>
-
-                <div class="flex items-center">
-                    <input 
-                        type="checkbox" 
-                        id="terms" 
-                        name="terms"
-                        required
-                        class="w-4 h-4 bg-white/10 border-white/20 rounded focus:ring-yellow-500"
-                    >
-                    <label for="terms" class="ml-2 text-white/70 text-sm">
-                        <a href="/terms" class="text-white hover:underline">Kullanım Koşulları</a>'nı ve 
-                        <a href="/privacy" class="text-white hover:underline">Gizlilik Politikası</a>'nı kabul ediyorum
-                    </label>
-                </div>
-
-                <button 
-                    type="submit" 
-                    class="w-full bg-gradient-to-r from-yellow-500 to-amber-600 text-white px-6 py-4 text-lg font-bold rounded-xl button-hover shadow-lg"
-                >
-                    <i class="fas fa-lock mr-2"></i>Güvenli Ödeme Yap
-                </button>
-            </form>
+            <div class="rounded-xl border border-yellow-300/40 bg-yellow-300/10 p-6 text-center">
+                <i class="fas fa-shield-alt text-yellow-300 text-2xl mb-3"></i>
+                <h3 class="text-lg font-bold text-white mb-2">Kart bilgisi istemiyoruz</h3>
+                <p class="text-white/80">Gerçek ödeme akışı, yalnızca PCI-DSS uyumlu bir ödeme sağlayıcısının barındırdığı ödeme sayfası ile etkinleştirilecektir.</p>
+            </div>
 
             <div class="mt-8 pt-6 border-t border-white/10 flex items-center justify-center">
                 <i class="fas fa-shield-alt text-green-400 mr-2"></i>
-                <p class="text-white/60 text-sm">Ödeme işlemleriniz 256-bit SSL ile korunmaktadır</p>
+                <p class="text-white/60 text-sm">Bu önizleme sürümü ödeme veya kart verisi işlemez.</p>
             </div>
         </div>
     </main>
 
-    <script>
-        // Format card number with spaces
-        function formatCardNumber(input) {
-            // Remove all non-digit characters
-            let value = input.value.replace(/\D/g, '');
-            
-            // Add space after every 4 digits
-            value = value.replace(/(\d{4})(?=\d)/g, '$1 ');
-            
-            // Update the input value
-            input.value = value;
-        }
-    </script>
 </body>
 </html>

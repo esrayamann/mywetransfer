@@ -161,6 +161,7 @@
 
                 <!-- Form -->
                 <form id="sendFileForm" method="POST" action="/send_file" enctype="multipart/form-data" class="space-y-6">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <!-- Email Fields -->
                     <div class="grid md:grid-cols-2 gap-6">
                         <div>
@@ -217,7 +218,7 @@
                                 </div>
                             </div>
                         </div>
-                        <p class="text-white/60 text-sm">Maksimum dosya boyutu: 2GB</p>
+                        <p class="text-white/60 text-sm">Aktarım sınırı sunucu yapılandırmasına göre uygulanır.</p>
                     </div>
 
                     <!-- Submit Button -->

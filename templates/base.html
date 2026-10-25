@@ -143,7 +143,7 @@
                         Üye Olmadan Dosya Gönder
                     </button>
                     <p class="text-white/60 mt-4 text-sm">
-                        Kayıt gerektirmez • 2GB'a kadar ücretsiz • 7 gün saklama
+                        Kayıt gerektirmez • Güvenli rastgele indirme bağlantısı • Sunucu limitleri uygulanır
                     </p>
                 </div>
 
@@ -158,6 +158,7 @@
                         </div>
                         
                         <form action="/send_file" method="POST" enctype="multipart/form-data" class="space-y-4">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <div>
                                 <label class="block text-white/80 mb-2">Gönderen E-posta</label>
                                 <input type="email" name="sender_email" required 
@@ -177,7 +178,7 @@
                                     <button type="button" onclick="setFileMode('folder')" class="bg-green-600 text-white px-4 py-2 rounded">Klasör Seç</button>
                                 </div>
                                 <input type="file" name="file" id="fileInput" class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white" multiple>
-                                <p class="text-white/60 text-sm mt-1">Birden fazla dosya veya klasör seçebilirsiniz. Maksimum dosya boyutu: 2GB</p>
+                                <p class="text-white/60 text-sm mt-1">Birden fazla dosya seçebilirsiniz. Aktarım sınırı sunucu yapılandırmasına göre uygulanır.</p>
                             </div>
                             
                             <button type="submit" class="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 rounded-lg font-bold hover:from-green-600 hover:to-emerald-700 transition-all">

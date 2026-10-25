@@ -160,6 +160,7 @@
                 {% endwith %}
 
                 <form method="POST" class="space-y-6">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div>
                         <label for="username" class="block text-white/80 mb-2">Kullanıcı Adı</label>
                         <input 
